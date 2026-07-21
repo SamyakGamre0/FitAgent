@@ -94,6 +94,7 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(this, WorkoutPlanActivity::class.java)
         intent.putExtra("GOAL", selectedGoal)
         intent.putExtra("EQUIPMENT", selectedEquipment)
+        intent.putExtra("DAYS", selectedDays)   // NEW: We now send the days too!
         startActivity(intent)
     }
 }

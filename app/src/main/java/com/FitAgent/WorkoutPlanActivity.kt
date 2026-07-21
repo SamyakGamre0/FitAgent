@@ -7,7 +7,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.FitAgent.adapters.ExerciseAdapter
-import com.FitAgent.models.Exercise
 import com.google.android.material.button.MaterialButton
 
 class WorkoutPlanActivity : AppCompatActivity() {
@@ -18,9 +17,11 @@ class WorkoutPlanActivity : AppCompatActivity() {
 
         val goal = intent.getStringExtra("GOAL") ?: "No Goal"
         val equipment = intent.getStringExtra("EQUIPMENT") ?: "No Equipment"
+        val days = intent.getStringExtra("DAYS") ?: "3 days"   // NEW: We receive the days here
 
         val tvSubtitle = findViewById<TextView>(R.id.tv_plan_subtitle)
-        tvSubtitle.text = "$goal | $equipment"
+        // NEW: Display all three pieces of info nicely
+        tvSubtitle.text = "$goal  •  $equipment  •  📅 $days/week"
 
         val exercises = com.FitAgent.utils.WorkoutGenerator.generate(goal, equipment)
 
@@ -33,6 +34,7 @@ class WorkoutPlanActivity : AppCompatActivity() {
             val intent = Intent(this, LoggerActivity::class.java)
             intent.putExtra("GOAL", goal)
             intent.putExtra("EQUIPMENT", equipment)
+            intent.putExtra("DAYS", days)   // NEW: Pass it forward to the Logger too
             startActivity(intent)
         }
     }
