@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -17,6 +18,7 @@ import com.FitAgent.models.WorkoutLog
 import com.FitAgent.models.WorkoutSession
 import com.FitAgent.utils.WorkoutGenerator
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -30,11 +32,17 @@ class LoggerActivity : AppCompatActivity() {
     private lateinit var timerRunnable: Runnable
     private lateinit var loggedList: MutableList<LoggedExercise>
 
+    private val SECONDS_KEY = "saved_seconds"
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_logger)
 
         tvTimer = findViewById(R.id.tv_timer)
+
+        if (savedInstanceState != null) {
+            seconds = savedInstanceState.getInt(SECONDS_KEY, 0)
+        }
 
         val goal = intent.getStringExtra("GOAL") ?: "General"
         val equipment = intent.getStringExtra("EQUIPMENT") ?: "None"
@@ -52,6 +60,33 @@ class LoggerActivity : AppCompatActivity() {
         btnSave.setOnClickListener {
             saveWorkoutToDatabase(goal, equipment)
         }
+
+        // NEW: Listen for when the user presses the back button
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                showExitConfirmation()
+            }
+        })
+    }
+
+    // NEW: Show a pop-up asking if they really want to quit
+    private fun showExitConfirmation() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Quit Workout? 🏃‍♂️")
+            .setMessage("Your progress will be lost if you leave now. Are you sure?")
+            .setPositiveButton("Keep Going 💪") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .setNegativeButton("Quit") { _, _ ->
+                handler.removeCallbacks(timerRunnable)
+                finish()
+            }
+            .show()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt(SECONDS_KEY, seconds)
     }
 
     private fun saveWorkoutToDatabase(goal: String, equipment: String) {

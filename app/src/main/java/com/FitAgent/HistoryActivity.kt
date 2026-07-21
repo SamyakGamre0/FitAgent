@@ -30,7 +30,11 @@ class HistoryActivity : AppCompatActivity() {
             } else {
                 tvEmpty.visibility = View.GONE
                 recycler.visibility = View.VISIBLE
-                recycler.adapter = HistoryAdapter(sessions)
+                recycler.adapter = HistoryAdapter(sessions) { session ->
+                    val intent = android.content.Intent(this@HistoryActivity, HistoryDetailActivity::class.java)
+                    intent.putExtra("SESSION_ID", session.id)
+                    startActivity(intent)
+                }
             }
         }
     }

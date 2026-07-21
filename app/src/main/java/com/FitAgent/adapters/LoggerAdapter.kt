@@ -54,6 +54,7 @@ class LoggerAdapter(
 
     override fun onBindViewHolder(holder: LoggerViewHolder, position: Int) {
         val logged = loggedList[position]
+
         holder.tvName.text = logged.exercise.name
         holder.tvMuscle.text = "Target: ${logged.exercise.muscleGroup}"
         holder.tvSets.text = logged.sets.toString()
@@ -69,6 +70,36 @@ class LoggerAdapter(
             ExerciseType.TIMED -> holder.layoutTimed.visibility = View.VISIBLE
         }
 
+        // Restore typed values
+        holder.etWeight.setText(if (logged.weight > 0) logged.weight.toString() else "")
+        holder.etRepsWeighted.setText(if (logged.reps > 0) logged.reps.toString() else "")
+        holder.etRepsBodyweight.setText(if (logged.reps > 0) logged.reps.toString() else "")
+        holder.etSeconds.setText(if (logged.seconds > 0) logged.seconds.toString() else "")
+
+        // Remove old watchers
+        holder.etWeight.removeTextChangedListener(holder.etWeight.tag as? TextWatcher)
+        holder.etRepsWeighted.removeTextChangedListener(holder.etRepsWeighted.tag as? TextWatcher)
+        holder.etRepsBodyweight.removeTextChangedListener(holder.etRepsBodyweight.tag as? TextWatcher)
+        holder.etSeconds.removeTextChangedListener(holder.etSeconds.tag as? TextWatcher)
+
+        // Create new watchers
+        val weightWatcher = simpleWatcher { logged.weight = it.toDoubleOrNull() ?: 0.0 }
+        val repsWeightedWatcher = simpleWatcher { logged.reps = it.toIntOrNull() ?: 0 }
+        val repsBodyweightWatcher = simpleWatcher { logged.reps = it.toIntOrNull() ?: 0 }
+        val secondsWatcher = simpleWatcher { logged.seconds = it.toIntOrNull() ?: 0 }
+
+        // Attach new watchers
+        holder.etWeight.addTextChangedListener(weightWatcher)
+        holder.etRepsWeighted.addTextChangedListener(repsWeightedWatcher)
+        holder.etRepsBodyweight.addTextChangedListener(repsBodyweightWatcher)
+        holder.etSeconds.addTextChangedListener(secondsWatcher)
+
+        // Tag them so we can remove them later
+        holder.etWeight.tag = weightWatcher
+        holder.etRepsWeighted.tag = repsWeightedWatcher
+        holder.etRepsBodyweight.tag = repsBodyweightWatcher
+        holder.etSeconds.tag = secondsWatcher
+
         holder.btnMinus.setOnClickListener {
             if (logged.sets > 1) {
                 logged.sets--
@@ -81,23 +112,11 @@ class LoggerAdapter(
                 holder.tvSets.text = logged.sets.toString()
             }
         }
+
         holder.btnUnit.setOnClickListener {
             logged.unit = if (logged.unit == "kg") "lbs" else "kg"
             holder.btnUnit.text = logged.unit
         }
-
-        holder.etWeight.addTextChangedListener(simpleWatcher {
-            logged.weight = it.toDoubleOrNull() ?: 0.0
-        })
-        holder.etRepsWeighted.addTextChangedListener(simpleWatcher {
-            logged.reps = it.toIntOrNull() ?: 0
-        })
-        holder.etRepsBodyweight.addTextChangedListener(simpleWatcher {
-            logged.reps = it.toIntOrNull() ?: 0
-        })
-        holder.etSeconds.addTextChangedListener(simpleWatcher {
-            logged.seconds = it.toIntOrNull() ?: 0
-        })
     }
 
     private fun simpleWatcher(action: (String) -> Unit) = object : TextWatcher {
@@ -106,5 +125,6 @@ class LoggerAdapter(
         override fun afterTextChanged(s: Editable?) { action(s.toString()) }
     }
 
+    // THIS IS THE MISSING PIECE! It tells the app how many items are in the list.
     override fun getItemCount() = loggedList.size
 }

@@ -7,6 +7,7 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.FitAgent.R
 import com.FitAgent.models.Exercise
+import com.FitAgent.models.ExerciseType
 
 class ExerciseAdapter(
     private val exercises: List<Exercise>
@@ -29,7 +30,16 @@ class ExerciseAdapter(
         val exercise = exercises[position]
         holder.tvName.text = exercise.name
         holder.tvMuscle.text = "Target: ${exercise.muscleGroup}"
-        holder.tvSetsReps.text = "Sets: ${exercise.sets} | Reps: ${exercise.reps}"
+
+        // Check if it is a TIMED exercise
+        if (exercise.type == ExerciseType.TIMED) {
+            // Show "Duration" instead of "Reps"
+            holder.tvSetsReps.text = "Sets: ${exercise.sets} | Duration: ${exercise.reps}s"
+        } else {
+            // Normal weighted or bodyweight exercise
+            holder.tvSetsReps.text = "Sets: ${exercise.sets} | Reps: ${exercise.reps}"
+        }
+
         holder.tvTip.text = "💡 ${exercise.tip}"
     }
 

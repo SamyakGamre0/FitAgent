@@ -9,7 +9,8 @@ import com.FitAgent.R
 import com.FitAgent.models.WorkoutSession
 
 class HistoryAdapter(
-    private val sessions: List<WorkoutSession>
+    private val sessions: List<WorkoutSession>,
+    private val onItemClick: (WorkoutSession) -> Unit
 ) : RecyclerView.Adapter<HistoryAdapter.HistoryViewHolder>() {
 
     class HistoryViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -19,8 +20,7 @@ class HistoryAdapter(
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): HistoryViewHolder {
-        val view = LayoutInflater.from(parent.context)
-            .inflate(R.layout.item_history, parent, false)
+        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_history, parent, false)
         return HistoryViewHolder(view)
     }
 
@@ -28,7 +28,9 @@ class HistoryAdapter(
         val s = sessions[position]
         holder.tvDate.text = s.date
         holder.tvGoal.text = "${s.goal} • ${s.equipment}"
-        holder.tvStats.text = "${s.exerciseCount} exercises • ${s.totalVolume} volume • ⏱ ${s.duration}"
+        val cleanVolume = String.format("%.1f", s.totalVolume)
+        holder.tvStats.text = "${s.exerciseCount} exercises • $cleanVolume vol • ⏱ ${s.duration}"
+        holder.itemView.setOnClickListener { onItemClick(s) }
     }
 
     override fun getItemCount() = sessions.size

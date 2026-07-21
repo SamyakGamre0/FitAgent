@@ -1,0 +1,1681 @@
+Here is the entire context of my FitAgent Android project. It includes all Kotlin source code, XML layouts, themes, strings, and Gradle build files.
+
+
+==================================================
+File: build.gradle.kts
+==================================================
+
+plugins {
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.kotlin.android) apply false
+}
+
+==================================================
+File: app\build.gradle.kts
+==================================================
+
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    id("kotlin-kapt")
+}
+
+android {
+    namespace = "com.FitAgent"
+    compileSdk = 36
+
+    defaultConfig {
+        applicationId = "com.FitAgent"
+        minSdk = 24
+        targetSdk = 36
+        versionCode = 1
+        versionName = "1.0"
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+
+    kotlinOptions {
+        jvmTarget = "11"
+    }
+}
+
+dependencies {
+    // Core Android
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+
+    // Material Design
+    implementation("com.google.android.material:material:1.11.0")
+
+    // RecyclerView and CardView
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
+    implementation("androidx.cardview:cardview:1.0.0")
+
+    // Room Database
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+    kapt("androidx.room:room-compiler:2.6.1")
+
+    // Lifecycle and ViewModel
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.7.0")
+
+    // Coroutines
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+    // Testing
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.espresso:espresso-core:3.5.1")
+}
+
+==================================================
+File: settings.gradle.kts
+==================================================
+
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "FitAgent"
+include(":app")
+
+==================================================
+File: app\src\main\AndroidManifest.xml
+==================================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="FitAgent"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.FitAgent"
+        tools:targetApi="31">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".WorkoutPlanActivity" />
+        <activity android:name=".LoggerActivity" />
+        <activity android:name=".HistoryActivity" />
+
+    </application>
+
+</manifest>
+
+==================================================
+File: app\src\main\java\com\FitAgent\HistoryActivity.kt
+==================================================
+
+package com.FitAgent
+
+import android.os.Bundle
+import android.view.View
+import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.FitAgent.adapters.HistoryAdapter
+import com.FitAgent.database.AppDatabase
+import kotlinx.coroutines.launch
+
+class HistoryActivity : AppCompatActivity() {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_history)
+
+        val recycler = findViewById<RecyclerView>(R.id.recycler_history)
+        val tvEmpty = findViewById<TextView>(R.id.tv_empty)
+        recycler.layoutManager = LinearLayoutManager(this)
+
+        val db = AppDatabase.getDatabase(this)
+        lifecycleScope.launch {
+            val sessions = db.workoutDao().getAllSessions()
+            if (sessions.isEmpty()) {
+                tvEmpty.visibility = View.VISIBLE
+                recycler.visibility = View.GONE
+            } else {
+                tvEmpty.visibility = View.GONE
+                recycler.visibility = View.VISIBLE
+                recycler.adapter = HistoryAdapter(sessions)
+            }
+        }
+    }
+}
+
+==================================================
+File: app\src\main\java\com\FitAgent\LoggerActivity.kt
+==================================================
+
+package com.FitAgent
+
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.FitAgent.adapters.LoggedExercise
+import com.FitAgent.adapters.LoggerAdapter
+import com.FitAgent.database.AppDatabase
+import com.FitAgent.models.ExerciseType
+import com.FitAgent.models.WorkoutLog
+import com.FitAgent.models.WorkoutSession
+import com.FitAgent.utils.WorkoutGenerator
+import com.google.android.material.button.MaterialButton
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+class LoggerActivity : AppCompatActivity() {
+
+    private lateinit var tvTimer: TextView
+    private var seconds = 0
+    private val handler = Handler(Looper.getMainLooper())
+    private lateinit var timerRunnable: Runnable
+    private lateinit var loggedList: MutableList<LoggedExercise>
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_logger)
+
+        tvTimer = findViewById(R.id.tv_timer)
+
+        val goal = intent.getStringExtra("GOAL") ?: "General"
+        val equipment = intent.getStringExtra("EQUIPMENT") ?: "None"
+
+        val exercises = WorkoutGenerator.generate(goal, equipment)
+        loggedList = exercises.map { LoggedExercise(it, sets = it.sets) }.toMutableList()
+
+        val recycler = findViewById<RecyclerView>(R.id.recycler_logger)
+        recycler.layoutManager = LinearLayoutManager(this)
+        recycler.adapter = LoggerAdapter(loggedList)
+
+        startTimer()
+
+        val btnSave = findViewById<MaterialButton>(R.id.btn_save_workout)
+        btnSave.setOnClickListener {
+            saveWorkoutToDatabase(goal, equipment)
+        }
+    }
+
+    private fun saveWorkoutToDatabase(goal: String, equipment: String) {
+        val validLogged = loggedList.filter { logged ->
+            when (logged.exercise.type) {
+                ExerciseType.WEIGHTED -> logged.weight > 0 && logged.reps > 0
+                ExerciseType.BODYWEIGHT -> logged.reps > 0
+                ExerciseType.TIMED -> logged.seconds > 0
+            }
+        }
+
+        if (validLogged.isEmpty()) {
+            Toast.makeText(this,
+                "Please log at least one exercise",
+                Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val totalVolume = validLogged.sumOf { logged ->
+            when (logged.exercise.type) {
+                ExerciseType.WEIGHTED -> logged.weight * logged.reps * logged.sets
+                ExerciseType.BODYWEIGHT -> (logged.reps * logged.sets).toDouble()
+                ExerciseType.TIMED -> (logged.seconds * logged.sets).toDouble()
+            }
+        }
+
+        val mins = seconds / 60
+        val secs = seconds % 60
+        val duration = String.format("%02d:%02d", mins, secs)
+        val date = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault())
+            .format(Date())
+
+        val session = WorkoutSession(
+            date = date,
+            goal = goal,
+            equipment = equipment,
+            duration = duration,
+            totalVolume = totalVolume,
+            exerciseCount = validLogged.size
+        )
+
+        val db = AppDatabase.getDatabase(this)
+
+        lifecycleScope.launch {
+            val sessionId = db.workoutDao().insertSession(session)
+
+            validLogged.forEach { logged ->
+                val (weight, reps, unit) = when (logged.exercise.type) {
+                    ExerciseType.WEIGHTED -> Triple(logged.weight, logged.reps, logged.unit)
+                    ExerciseType.BODYWEIGHT -> Triple(0.0, logged.reps, "reps")
+                    ExerciseType.TIMED -> Triple(0.0, logged.seconds, "sec")
+                }
+
+                val volume = when (logged.exercise.type) {
+                    ExerciseType.WEIGHTED -> logged.weight * logged.reps * logged.sets
+                    ExerciseType.BODYWEIGHT -> (logged.reps * logged.sets).toDouble()
+                    ExerciseType.TIMED -> (logged.seconds * logged.sets).toDouble()
+                }
+
+                val log = WorkoutLog(
+                    sessionId = sessionId,
+                    exerciseName = logged.exercise.name,
+                    muscleGroup = logged.exercise.muscleGroup,
+                    sets = logged.sets,
+                    weight = weight,
+                    reps = reps,
+                    unit = unit,
+                    volume = volume
+                )
+                db.workoutDao().insertLog(log)
+            }
+
+            Toast.makeText(this@LoggerActivity,
+                "✅ Workout Saved!",
+                Toast.LENGTH_LONG).show()
+
+            handler.removeCallbacks(timerRunnable)
+            finish()
+        }
+    }
+
+    private fun startTimer() {
+        timerRunnable = object : Runnable {
+            override fun run() {
+                seconds++
+                val mins = seconds / 60
+                val secs = seconds % 60
+                tvTimer.text = String.format("⏱ %02d:%02d", mins, secs)
+                handler.postDelayed(this, 1000)
+            }
+        }
+        handler.post(timerRunnable)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        handler.removeCallbacks(timerRunnable)
+    }
+}
+
+==================================================
+File: app\src\main\java\com\FitAgent\MainActivity.kt
+==================================================
+
+package com.FitAgent
+
+import android.content.Intent
+import android.os.Bundle
+import android.widget.ArrayAdapter
+import android.widget.Spinner
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.button.MaterialButton
+
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var spinnerGoal: Spinner
+    private lateinit var spinnerEquipment: Spinner
+    private lateinit var spinnerDays: Spinner
+    private lateinit var btnGenerate: MaterialButton
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        spinnerGoal = findViewById(R.id.spinner_goal)
+        spinnerEquipment = findViewById(R.id.spinner_equipment)
+        spinnerDays = findViewById(R.id.spinner_days)
+        btnGenerate = findViewById(R.id.btn_generate)
+
+        setupSpinners()
+
+        btnGenerate.setOnClickListener {
+            handleGenerateClick()
+        }
+
+        val btnHistory = findViewById<MaterialButton>(R.id.btn_view_history)
+        btnHistory?.setOnClickListener {
+            startActivity(Intent(this, HistoryActivity::class.java))
+        }
+    }
+
+    private fun setupSpinners() {
+        val goals = arrayOf(
+            "Choose your goal...",
+            "Muscle Gain 💪",
+            "Weight Loss 🔥",
+            "General Fitness ⚡",
+            "Build Endurance 🏃"
+        )
+        val goalsAdapter = ArrayAdapter(this,
+            android.R.layout.simple_spinner_item, goals)
+        goalsAdapter.setDropDownViewResource(
+            android.R.layout.simple_spinner_dropdown_item)
+        spinnerGoal.adapter = goalsAdapter
+
+        val equipment = arrayOf(
+            "Choose equipment...",
+            "No Equipment 🏠",
+            "Dumbbells Only 🏋️",
+            "Full Gym 🏟️",
+            "Resistance Bands 🎽"
+        )
+        val equipAdapter = ArrayAdapter(this,
+            android.R.layout.simple_spinner_item, equipment)
+        equipAdapter.setDropDownViewResource(
+            android.R.layout.simple_spinner_dropdown_item)
+        spinnerEquipment.adapter = equipAdapter
+
+        val days = arrayOf(
+            "Select days...",
+            "3 days",
+            "4 days",
+            "5 days",
+            "6 days"
+        )
+        val daysAdapter = ArrayAdapter(this,
+            android.R.layout.simple_spinner_item, days)
+        daysAdapter.setDropDownViewResource(
+            android.R.layout.simple_spinner_dropdown_item)
+        spinnerDays.adapter = daysAdapter
+    }
+
+    private fun handleGenerateClick() {
+        val selectedGoal = spinnerGoal.selectedItem.toString()
+        val selectedEquipment = spinnerEquipment.selectedItem.toString()
+        val selectedDays = spinnerDays.selectedItem.toString()
+
+        if (selectedGoal.startsWith("Choose") ||
+            selectedEquipment.startsWith("Choose") ||
+            selectedDays.startsWith("Select")) {
+            Toast.makeText(this,
+                "Please select all options",
+                Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val intent = Intent(this, WorkoutPlanActivity::class.java)
+        intent.putExtra("GOAL", selectedGoal)
+        intent.putExtra("EQUIPMENT", selectedEquipment)
+        startActivity(intent)
+    }
+}
+
+==================================================
+File: app\src\main\java\com\FitAgent\WorkoutPlanActivity.kt
+==================================================
+
+package com.FitAgent
+
+import android.content.Intent
+import android.os.Bundle
+import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.FitAgent.adapters.ExerciseAdapter
+import com.FitAgent.models.Exercise
+import com.google.android.material.button.MaterialButton
+
+class WorkoutPlanActivity : AppCompatActivity() {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_workout_plan)
+
+        val goal = intent.getStringExtra("GOAL") ?: "No Goal"
+        val equipment = intent.getStringExtra("EQUIPMENT") ?: "No Equipment"
+
+        val tvSubtitle = findViewById<TextView>(R.id.tv_plan_subtitle)
+        tvSubtitle.text = "$goal | $equipment"
+
+        val exercises = com.FitAgent.utils.WorkoutGenerator.generate(goal, equipment)
+
+        val recyclerView = findViewById<RecyclerView>(R.id.recycler_exercises)
+        recyclerView.layoutManager = LinearLayoutManager(this)
+        recyclerView.adapter = ExerciseAdapter(exercises)
+
+        val btnStart = findViewById<MaterialButton>(R.id.btn_start_logging)
+        btnStart.setOnClickListener {
+            val intent = Intent(this, LoggerActivity::class.java)
+            intent.putExtra("GOAL", goal)
+            intent.putExtra("EQUIPMENT", equipment)
+            startActivity(intent)
+        }
+    }
+}
+
+==================================================
+File: app\src\main\java\com\FitAgent\adapters\ExerciseAdapter.kt
+==================================================
+
+package com.FitAgent.adapters
+
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.TextView
+import androidx.recyclerview.widget.RecyclerView
+import com.FitAgent.R
+import com.FitAgent.models.Exercise
+
+class ExerciseAdapter(
+    private val exercises: List<Exercise>
+) : RecyclerView.Adapter<ExerciseAdapter.ExerciseViewHolder>() {
+
+    class ExerciseViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+        val tvName: TextView = view.findViewById(R.id.tv_exercise_name)
+        val tvMuscle: TextView = view.findViewById(R.id.tv_muscle_group)
+        val tvSetsReps: TextView = view.findViewById(R.id.tv_sets_reps)
+        val tvTip: TextView = view.findViewById(R.id.tv_tip)
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ExerciseViewHolder {
+        val view = LayoutInflater.from(parent.context)
+            .inflate(R.layout.item_exercise, parent, false)
+        return ExerciseViewHolder(view)
+    }
+
+    override fun onBindViewHolder(holder: ExerciseViewHolder, position: Int) {
+        val exercise = exercises[position]
+        holder.tvName.text = exercise.name
+        holder.tvMuscle.text = "Target: ${exercise.muscleGroup}"
+        holder.tvSetsReps.text = "Sets: ${exercise.sets} | Reps: ${exercise.reps}"
+        holder.tvTip.text = "💡 ${exercise.tip}"
+    }
+
+    override fun getItemCount() = exercises.size
+}
+
+==================================================
+File: app\src\main\java\com\FitAgent\adapters\HistoryAdapter.kt
+==================================================
+
+package com.FitAgent.adapters
+
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.TextView
+import androidx.recyclerview.widget.RecyclerView
+import com.FitAgent.R
+import com.FitAgent.models.WorkoutSession
+
+class HistoryAdapter(
+    private val sessions: List<WorkoutSession>
+) : RecyclerView.Adapter<HistoryAdapter.HistoryViewHolder>() {
+
+    class HistoryViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+        val tvDate: TextView = view.findViewById(R.id.tv_hist_date)
+        val tvGoal: TextView = view.findViewById(R.id.tv_hist_goal)
+        val tvStats: TextView = view.findViewById(R.id.tv_hist_stats)
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): HistoryViewHolder {
+        val view = LayoutInflater.from(parent.context)
+            .inflate(R.layout.item_history, parent, false)
+        return HistoryViewHolder(view)
+    }
+
+    override fun onBindViewHolder(holder: HistoryViewHolder, position: Int) {
+        val s = sessions[position]
+        holder.tvDate.text = s.date
+        holder.tvGoal.text = "${s.goal} • ${s.equipment}"
+        holder.tvStats.text = "${s.exerciseCount} exercises • ${s.totalVolume} volume • ⏱ ${s.duration}"
+    }
+
+    override fun getItemCount() = sessions.size
+}
+
+==================================================
+File: app\src\main\java\com\FitAgent\adapters\LoggerAdapter.kt
+==================================================
+
+package com.FitAgent.adapters
+
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.LinearLayout
+import android.widget.TextView
+import androidx.recyclerview.widget.RecyclerView
+import com.FitAgent.R
+import com.FitAgent.models.Exercise
+import com.FitAgent.models.ExerciseType
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
+
+data class LoggedExercise(
+    val exercise: Exercise,
+    var weight: Double = 0.0,
+    var reps: Int = 0,
+    var seconds: Int = 0,
+    var sets: Int = 3,
+    var unit: String = "kg"
+)
+
+class LoggerAdapter(
+    val loggedList: MutableList<LoggedExercise>
+) : RecyclerView.Adapter<LoggerAdapter.LoggerViewHolder>() {
+
+    class LoggerViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+        val tvName: TextView = view.findViewById(R.id.tv_log_exercise_name)
+        val tvMuscle: TextView = view.findViewById(R.id.tv_log_muscle)
+        val btnMinus: MaterialButton = view.findViewById(R.id.btn_minus_set)
+        val btnPlus: MaterialButton = view.findViewById(R.id.btn_plus_set)
+        val tvSets: TextView = view.findViewById(R.id.tv_sets_count)
+
+        val layoutWeighted: LinearLayout = view.findViewById(R.id.layout_weighted)
+        val layoutBodyweight: TextInputLayout = view.findViewById(R.id.layout_bodyweight)
+        val layoutTimed: TextInputLayout = view.findViewById(R.id.layout_timed)
+
+        val etWeight: TextInputEditText = view.findViewById(R.id.et_weight)
+        val btnUnit: MaterialButton = view.findViewById(R.id.btn_unit_toggle)
+        val etRepsWeighted: TextInputEditText = view.findViewById(R.id.et_reps_weighted)
+        val etRepsBodyweight: TextInputEditText = view.findViewById(R.id.et_reps_bodyweight)
+        val etSeconds: TextInputEditText = view.findViewById(R.id.et_seconds)
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): LoggerViewHolder {
+        val view = LayoutInflater.from(parent.context)
+            .inflate(R.layout.item_logger, parent, false)
+        return LoggerViewHolder(view)
+    }
+
+    override fun onBindViewHolder(holder: LoggerViewHolder, position: Int) {
+        val logged = loggedList[position]
+        holder.tvName.text = logged.exercise.name
+        holder.tvMuscle.text = "Target: ${logged.exercise.muscleGroup}"
+        holder.tvSets.text = logged.sets.toString()
+        holder.btnUnit.text = logged.unit
+
+        holder.layoutWeighted.visibility = View.GONE
+        holder.layoutBodyweight.visibility = View.GONE
+        holder.layoutTimed.visibility = View.GONE
+
+        when (logged.exercise.type) {
+            ExerciseType.WEIGHTED -> holder.layoutWeighted.visibility = View.VISIBLE
+            ExerciseType.BODYWEIGHT -> holder.layoutBodyweight.visibility = View.VISIBLE
+            ExerciseType.TIMED -> holder.layoutTimed.visibility = View.VISIBLE
+        }
+
+        holder.btnMinus.setOnClickListener {
+            if (logged.sets > 1) {
+                logged.sets--
+                holder.tvSets.text = logged.sets.toString()
+            }
+        }
+        holder.btnPlus.setOnClickListener {
+            if (logged.sets < 10) {
+                logged.sets++
+                holder.tvSets.text = logged.sets.toString()
+            }
+        }
+        holder.btnUnit.setOnClickListener {
+            logged.unit = if (logged.unit == "kg") "lbs" else "kg"
+            holder.btnUnit.text = logged.unit
+        }
+
+        holder.etWeight.addTextChangedListener(simpleWatcher {
+            logged.weight = it.toDoubleOrNull() ?: 0.0
+        })
+        holder.etRepsWeighted.addTextChangedListener(simpleWatcher {
+            logged.reps = it.toIntOrNull() ?: 0
+        })
+        holder.etRepsBodyweight.addTextChangedListener(simpleWatcher {
+            logged.reps = it.toIntOrNull() ?: 0
+        })
+        holder.etSeconds.addTextChangedListener(simpleWatcher {
+            logged.seconds = it.toIntOrNull() ?: 0
+        })
+    }
+
+    private fun simpleWatcher(action: (String) -> Unit) = object : TextWatcher {
+        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        override fun afterTextChanged(s: Editable?) { action(s.toString()) }
+    }
+
+    override fun getItemCount() = loggedList.size
+}
+
+==================================================
+File: app\src\main\java\com\FitAgent\database\AppDatabase.kt
+==================================================
+
+package com.FitAgent.database
+
+import android.content.Context
+import androidx.room.Database
+import androidx.room.Room
+import androidx.room.RoomDatabase
+import com.FitAgent.models.WorkoutLog
+import com.FitAgent.models.WorkoutSession
+
+@Database(
+    entities = [WorkoutSession::class, WorkoutLog::class],
+    version = 2,
+    exportSchema = false
+)
+abstract class AppDatabase : RoomDatabase() {
+
+    abstract fun workoutDao(): WorkoutDao
+
+    companion object {
+        @Volatile
+        private var INSTANCE: AppDatabase? = null
+
+        fun getDatabase(context: Context): AppDatabase {
+            return INSTANCE ?: synchronized(this) {
+                val instance = Room.databaseBuilder(
+                    context.applicationContext,
+                    AppDatabase::class.java,
+                    "fitagent_database"
+                ).fallbackToDestructiveMigration().build()
+                INSTANCE = instance
+                instance
+            }
+        }
+    }
+}
+
+==================================================
+File: app\src\main\java\com\FitAgent\database\WorkoutDao.kt
+==================================================
+
+package com.FitAgent.database
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.Query
+import com.FitAgent.models.WorkoutLog
+import com.FitAgent.models.WorkoutSession
+
+@Dao
+interface WorkoutDao {
+
+    @Insert
+    suspend fun insertSession(session: WorkoutSession): Long
+
+    @Insert
+    suspend fun insertLog(log: WorkoutLog)
+
+    @Query("SELECT * FROM workout_sessions ORDER BY id DESC")
+    suspend fun getAllSessions(): List<WorkoutSession>
+
+    @Query("SELECT * FROM workout_logs WHERE sessionId = :sessionId")
+    suspend fun getLogsForSession(sessionId: Long): List<WorkoutLog>
+
+    @Query("SELECT COUNT(*) FROM workout_sessions")
+    suspend fun getTotalWorkouts(): Int
+
+    @Query("SELECT SUM(totalVolume) FROM workout_sessions")
+    suspend fun getTotalVolumeLifted(): Double?
+}
+
+==================================================
+File: app\src\main\java\com\FitAgent\models\Exercise.kt
+==================================================
+
+package com.FitAgent.models
+
+enum class ExerciseType {
+    WEIGHTED,     // needs weight + reps (bench press)
+    BODYWEIGHT,   // needs only reps (pushups)
+    TIMED         // needs only seconds (plank)
+}
+
+data class Exercise(
+    val name: String,
+    val sets: Int,
+    val reps: String,
+    val muscleGroup: String,
+    val tip: String,
+    val type: ExerciseType = ExerciseType.WEIGHTED
+)
+
+==================================================
+File: app\src\main\java\com\FitAgent\models\WorkoutLog.kt
+==================================================
+
+package com.FitAgent.models
+
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+
+@Entity(tableName = "workout_logs")
+data class WorkoutLog(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val sessionId: Long,
+    val exerciseName: String,
+    val muscleGroup: String,
+    val sets: Int,
+    val weight: Double,
+    val reps: Int,
+    val unit: String,
+    val volume: Double
+)
+
+==================================================
+File: app\src\main\java\com\FitAgent\models\WorkoutSession.kt
+==================================================
+
+package com.FitAgent.models
+
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+
+@Entity(tableName = "workout_sessions")
+data class WorkoutSession(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val date: String,
+    val goal: String,
+    val equipment: String,
+    val duration: String,
+    val totalVolume: Double,
+    val exerciseCount: Int
+)
+
+==================================================
+File: app\src\main\java\com\FitAgent\utils\WorkoutGenerator.kt
+==================================================
+
+package com.FitAgent.utils
+
+import com.FitAgent.models.Exercise
+import com.FitAgent.models.ExerciseType
+
+object WorkoutGenerator {
+
+    fun generate(goal: String, equipment: String): List<Exercise> {
+        val goalKey = when {
+            goal.contains("Muscle", true) -> "muscle"
+            goal.contains("Weight Loss", true) -> "weightloss"
+            goal.contains("Endurance", true) -> "endurance"
+            else -> "general"
+        }
+
+        val equipKey = when {
+            equipment.contains("No Equipment", true) -> "none"
+            equipment.contains("Dumbbell", true) -> "dumbbell"
+            equipment.contains("Full Gym", true) -> "gym"
+            equipment.contains("Resistance", true) -> "bands"
+            else -> "none"
+        }
+
+        return when ("$goalKey-$equipKey") {
+
+            // MUSCLE GAIN
+            "muscle-none" -> listOf(
+                Exercise("Push-ups", 4, "12-15", "Chest", "Keep core tight", ExerciseType.BODYWEIGHT),
+                Exercise("Diamond Push-ups", 3, "10", "Triceps", "Form diamond with hands", ExerciseType.BODYWEIGHT),
+                Exercise("Bodyweight Squats", 4, "20", "Legs", "Go deep", ExerciseType.BODYWEIGHT),
+                Exercise("Pike Push-ups", 3, "10", "Shoulders", "Elevate hips high", ExerciseType.BODYWEIGHT),
+                Exercise("Plank", 3, "60", "Core", "Straight body line", ExerciseType.TIMED)
+            )
+            "muscle-dumbbell" -> listOf(
+                Exercise("Dumbbell Bench Press", 4, "8-10", "Chest", "Full range of motion", ExerciseType.WEIGHTED),
+                Exercise("Dumbbell Rows", 4, "10", "Back", "Squeeze shoulder blades", ExerciseType.WEIGHTED),
+                Exercise("Dumbbell Shoulder Press", 3, "10", "Shoulders", "Elbows slightly forward", ExerciseType.WEIGHTED),
+                Exercise("Dumbbell Bicep Curls", 3, "12", "Biceps", "Control the negative", ExerciseType.WEIGHTED),
+                Exercise("Goblet Squats", 4, "12", "Legs", "Chest up", ExerciseType.WEIGHTED)
+            )
+            "muscle-gym" -> listOf(
+                Exercise("Barbell Bench Press", 4, "6-8", "Chest", "Retract shoulder blades", ExerciseType.WEIGHTED),
+                Exercise("Deadlifts", 4, "5", "Back/Legs", "Neutral spine", ExerciseType.WEIGHTED),
+                Exercise("Barbell Squats", 4, "8", "Legs", "Break parallel", ExerciseType.WEIGHTED),
+                Exercise("Pull-ups", 3, "8-10", "Back", "Full hang at bottom", ExerciseType.BODYWEIGHT),
+                Exercise("Overhead Press", 3, "8", "Shoulders", "Tight core", ExerciseType.WEIGHTED)
+            )
+            "muscle-bands" -> listOf(
+                Exercise("Band Chest Press", 4, "12", "Chest", "Slow eccentric", ExerciseType.WEIGHTED),
+                Exercise("Band Rows", 4, "12", "Back", "Pull to hips", ExerciseType.WEIGHTED),
+                Exercise("Band Squats", 4, "15", "Legs", "Bands under feet", ExerciseType.WEIGHTED),
+                Exercise("Band Shoulder Press", 3, "12", "Shoulders", "Stand on band", ExerciseType.WEIGHTED),
+                Exercise("Band Bicep Curls", 3, "15", "Biceps", "Full squeeze at top", ExerciseType.WEIGHTED)
+            )
+
+            // WEIGHT LOSS
+            "weightloss-none" -> listOf(
+                Exercise("Burpees", 4, "15", "Full Body", "Explode up", ExerciseType.BODYWEIGHT),
+                Exercise("Mountain Climbers", 4, "60", "Core/Cardio", "Fast pace", ExerciseType.TIMED),
+                Exercise("Jumping Jacks", 4, "45", "Cardio", "Keep tempo high", ExerciseType.TIMED),
+                Exercise("High Knees", 3, "45", "Cardio", "Drive knees up", ExerciseType.TIMED),
+                Exercise("Squat Jumps", 4, "12", "Legs/Cardio", "Land softly", ExerciseType.BODYWEIGHT)
+            )
+            "weightloss-dumbbell" -> listOf(
+                Exercise("Dumbbell Thrusters", 4, "12", "Full Body", "Explode from squat", ExerciseType.WEIGHTED),
+                Exercise("Renegade Rows", 3, "10", "Back/Core", "Stable plank", ExerciseType.WEIGHTED),
+                Exercise("Dumbbell Swings", 4, "15", "Posterior/Cardio", "Hinge at hips", ExerciseType.WEIGHTED),
+                Exercise("Dumbbell Lunges", 3, "12 each", "Legs", "Knee tracks toes", ExerciseType.WEIGHTED),
+                Exercise("Burpees", 3, "10", "Full Body", "Full extension", ExerciseType.BODYWEIGHT)
+            )
+            "weightloss-gym" -> listOf(
+                Exercise("Rowing Machine", 3, "300", "Full Body", "Steady pace", ExerciseType.TIMED),
+                Exercise("Kettlebell Swings", 4, "20", "Posterior/Cardio", "Hips drive movement", ExerciseType.WEIGHTED),
+                Exercise("Battle Ropes", 4, "30", "Full Body", "Alternating slams", ExerciseType.TIMED),
+                Exercise("Box Jumps", 4, "10", "Legs", "Soft landing", ExerciseType.BODYWEIGHT),
+                Exercise("Assault Bike Sprints", 5, "20", "Cardio", "All out effort", ExerciseType.TIMED)
+            )
+            "weightloss-bands" -> listOf(
+                Exercise("Band Squats to Press", 4, "12", "Full Body", "Continuous motion", ExerciseType.WEIGHTED),
+                Exercise("Band Woodchoppers", 3, "12 each", "Core", "Rotate through core", ExerciseType.WEIGHTED),
+                Exercise("Jumping Jacks", 4, "45", "Cardio", "Add band pull-aparts", ExerciseType.TIMED),
+                Exercise("Band Deadlifts", 4, "15", "Posterior", "Neutral spine", ExerciseType.WEIGHTED),
+                Exercise("Mountain Climbers", 3, "45", "Cardio/Core", "Fast", ExerciseType.TIMED)
+            )
+
+            // ENDURANCE
+            "endurance-none" -> listOf(
+                Exercise("Running in Place", 4, "120", "Cardio", "Land midfoot", ExerciseType.TIMED),
+                Exercise("Jumping Jacks", 4, "90", "Cardio", "Keep rhythm", ExerciseType.TIMED),
+                Exercise("Plank", 3, "90", "Core", "Straight line", ExerciseType.TIMED),
+                Exercise("Wall Sit", 3, "60", "Legs", "90 degrees", ExerciseType.TIMED),
+                Exercise("Push-ups", 3, "15-20", "Chest", "Steady tempo", ExerciseType.BODYWEIGHT)
+            )
+            "endurance-dumbbell" -> listOf(
+                Exercise("Dumbbell Farmer Walk", 4, "60", "Grip/Core", "Tall posture", ExerciseType.TIMED),
+                Exercise("Dumbbell Step-ups", 3, "15 each", "Legs", "Drive through heel", ExerciseType.WEIGHTED),
+                Exercise("Dumbbell Rows", 3, "15", "Back", "Higher reps", ExerciseType.WEIGHTED),
+                Exercise("Dumbbell Squats", 3, "20", "Legs", "Full depth", ExerciseType.WEIGHTED),
+                Exercise("Plank", 3, "90", "Core", "Rock solid", ExerciseType.TIMED)
+            )
+            "endurance-gym" -> listOf(
+                Exercise("Treadmill Run", 1, "1200", "Cardio", "Zone 2 pace", ExerciseType.TIMED),
+                Exercise("Cycling", 1, "900", "Cardio/Legs", "Steady cadence", ExerciseType.TIMED),
+                Exercise("Rowing Machine", 3, "300", "Full Body", "Legs then arms", ExerciseType.TIMED),
+                Exercise("Pull-ups", 3, "10", "Back", "Full range", ExerciseType.BODYWEIGHT),
+                Exercise("Plank", 3, "120", "Core", "Long hold", ExerciseType.TIMED)
+            )
+            "endurance-bands" -> listOf(
+                Exercise("Band Rows High Rep", 4, "20", "Back", "Slow and controlled", ExerciseType.WEIGHTED),
+                Exercise("Band Squats", 4, "25", "Legs", "Continuous tension", ExerciseType.WEIGHTED),
+                Exercise("Jumping Jacks", 4, "90", "Cardio", "Keep going", ExerciseType.TIMED),
+                Exercise("Band Bicep Curls", 3, "20", "Biceps", "No rest", ExerciseType.WEIGHTED),
+                Exercise("Plank", 3, "90", "Core", "Steady breathing", ExerciseType.TIMED)
+            )
+
+            // GENERAL FITNESS
+            "general-none" -> listOf(
+                Exercise("Push-ups", 3, "12", "Chest", "Elbows 45 degrees", ExerciseType.BODYWEIGHT),
+                Exercise("Bodyweight Squats", 3, "15", "Legs", "Chest up", ExerciseType.BODYWEIGHT),
+                Exercise("Plank", 3, "45", "Core", "Squeeze glutes", ExerciseType.TIMED),
+                Exercise("Lunges", 3, "10 each", "Legs", "Vertical shin", ExerciseType.BODYWEIGHT),
+                Exercise("Mountain Climbers", 3, "30", "Core/Cardio", "Controlled", ExerciseType.TIMED)
+            )
+            "general-dumbbell" -> listOf(
+                Exercise("Dumbbell Bench Press", 3, "12", "Chest", "Full ROM", ExerciseType.WEIGHTED),
+                Exercise("Dumbbell Rows", 3, "12", "Back", "Elbow to hip", ExerciseType.WEIGHTED),
+                Exercise("Goblet Squats", 3, "15", "Legs", "Elbows inside knees", ExerciseType.WEIGHTED),
+                Exercise("Dumbbell Curls", 3, "12", "Biceps", "No swinging", ExerciseType.WEIGHTED),
+                Exercise("Plank", 3, "45", "Core", "Neutral spine", ExerciseType.TIMED)
+            )
+            "general-gym" -> listOf(
+                Exercise("Barbell Squats", 3, "10", "Legs", "Break parallel", ExerciseType.WEIGHTED),
+                Exercise("Bench Press", 3, "10", "Chest", "Retract scapula", ExerciseType.WEIGHTED),
+                Exercise("Lat Pulldown", 3, "12", "Back", "Squeeze at bottom", ExerciseType.WEIGHTED),
+                Exercise("Leg Press", 3, "12", "Legs", "Full depth", ExerciseType.WEIGHTED),
+                Exercise("Plank", 3, "60", "Core", "Rigid line", ExerciseType.TIMED)
+            )
+            "general-bands" -> listOf(
+                Exercise("Band Chest Press", 3, "15", "Chest", "Slow control", ExerciseType.WEIGHTED),
+                Exercise("Band Rows", 3, "15", "Back", "Full squeeze", ExerciseType.WEIGHTED),
+                Exercise("Band Squats", 3, "20", "Legs", "Stand on band", ExerciseType.WEIGHTED),
+                Exercise("Band Curls", 3, "15", "Biceps", "Full range", ExerciseType.WEIGHTED),
+                Exercise("Plank", 3, "45", "Core", "Straight body", ExerciseType.TIMED)
+            )
+
+            else -> listOf(
+                Exercise("Push-ups", 3, "12", "Chest", "Basic form", ExerciseType.BODYWEIGHT),
+                Exercise("Squats", 3, "15", "Legs", "Chest up", ExerciseType.BODYWEIGHT),
+                Exercise("Plank", 3, "45", "Core", "Straight line", ExerciseType.TIMED),
+                Exercise("Lunges", 3, "10 each", "Legs", "Deep lunge", ExerciseType.BODYWEIGHT),
+                Exercise("Mountain Climbers", 3, "30", "Cardio", "Fast pace", ExerciseType.TIMED)
+            )
+        }
+    }
+}
+
+==================================================
+File: app\src\main\res\layout\activity_history.xml
+==================================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_primary"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:text="Workout History"
+        android:textColor="@color/aura_green"
+        android:textSize="28sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tv_empty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="100dp"
+        android:gravity="center"
+        android:text="No workouts yet 💪\nStart logging to see your history!"
+        android:textColor="@color/text_secondary"
+        android:textSize="16sp"
+        android:visibility="gone" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recycler_history"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+</LinearLayout>
+
+==================================================
+File: app\src\main\res\layout\activity_logger.xml
+==================================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/bg_primary"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Log Your Workout"
+        android:textColor="@color/aura_green"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:id="@+id/tv_timer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="⏱ 00:00"
+        android:textColor="@color/text_primary"
+        android:textSize="20sp"
+        android:layout_marginBottom="16dp" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recycler_logger"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_save_workout"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="Save Workout ✅"
+        android:textColor="@color/black"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        app:backgroundTint="@color/aura_green"
+        app:cornerRadius="12dp"
+        android:layout_marginTop="16dp" />
+
+</LinearLayout>
+
+==================================================
+File: app\src\main\res\layout\activity_main.xml
+==================================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_primary"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <!-- HEADER SECTION -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:layout_marginBottom="48dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="💪"
+                android:textSize="64sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="FitAgent"
+                android:textColor="@color/aura_green"
+                android:textSize="36sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Your Personal Coach"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <!-- GOAL SELECTION CARD -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardBackgroundColor="@color/bg_card"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="4dp"
+            app:strokeColor="@color/aura_green_soft"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    android:text="🎯 Select Your Goal"
+                    android:textColor="@color/text_primary"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <Spinner
+                    android:id="@+id/spinner_goal"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:backgroundTint="@color/aura_green" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- EQUIPMENT SELECTION CARD -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardBackgroundColor="@color/bg_card"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="4dp"
+            app:strokeColor="@color/aura_green_soft"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    android:text="🏋️ Available Equipment"
+                    android:textColor="@color/text_primary"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <Spinner
+                    android:id="@+id/spinner_equipment"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:backgroundTint="@color/aura_green" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- DAYS PER WEEK CARD -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardBackgroundColor="@color/bg_card"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="4dp"
+            app:strokeColor="@color/aura_green_soft"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    android:text="📅 Days Per Week"
+                    android:textColor="@color/text_primary"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <Spinner
+                    android:id="@+id/spinner_days"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:backgroundTint="@color/aura_green" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- GENERATE BUTTON -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_generate"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="24dp"
+            android:text="Generate My Workout 💪"
+            android:textColor="@color/black"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            app:backgroundTint="@color/aura_green"
+            app:cornerRadius="12dp"
+            app:elevation="4dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_view_history"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="12dp"
+            android:text="View History 📊"
+            android:textColor="@color/aura_green"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            app:backgroundTint="@color/bg_card"
+            app:cornerRadius="12dp"
+            app:strokeColor="@color/aura_green"
+            app:strokeWidth="1dp"/>
+
+    </LinearLayout>
+</ScrollView>
+
+==================================================
+File: app\src\main\res\layout\activity_workout_plan.xml
+==================================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/bg_primary"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Your Custom Plan"
+        android:textColor="@color/aura_green"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:id="@+id/tv_plan_subtitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Goal | Equipment"
+        android:textColor="@color/text_secondary"
+        android:textSize="14sp"
+        android:layout_marginBottom="16dp" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recycler_exercises"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_start_logging"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="Start Logging ▶"
+        android:textColor="@color/black"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        app:backgroundTint="@color/aura_green"
+        app:cornerRadius="12dp"
+        android:layout_marginTop="16dp" />
+
+</LinearLayout>
+
+==================================================
+File: app\src\main\res\layout\item_exercise.xml
+==================================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="12dp"
+    app:cardBackgroundColor="@color/bg_card"
+    app:cardCornerRadius="16dp"
+    app:strokeColor="@color/aura_green_soft"
+    app:strokeWidth="1dp"
+    app:cardElevation="4dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/tv_exercise_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Exercise Name"
+            android:textColor="@color/text_primary"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tv_muscle_group"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Target: Chest"
+            android:textColor="@color/aura_green"
+            android:textSize="14sp"
+            android:layout_marginTop="4dp" />
+
+        <TextView
+            android:id="@+id/tv_sets_reps"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Sets: 3 | Reps: 12"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp"
+            android:layout_marginTop="4dp" />
+
+        <TextView
+            android:id="@+id/tv_tip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="💡 Keep your back straight"
+            android:textColor="@color/text_hint"
+            android:textSize="12sp"
+            android:textStyle="italic"
+            android:layout_marginTop="8dp" />
+
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>
+
+==================================================
+File: app\src\main\res\layout\item_history.xml
+==================================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="12dp"
+    app:cardBackgroundColor="@color/bg_card"
+    app:cardCornerRadius="16dp"
+    app:strokeColor="@color/aura_green_soft"
+    app:strokeWidth="1dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/tv_hist_date"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_primary"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tv_hist_goal"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="@color/aura_green"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/tv_hist_stats"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>
+
+==================================================
+File: app\src\main\res\layout\item_logger.xml
+==================================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="12dp"
+    app:cardBackgroundColor="@color/bg_card"
+    app:cardCornerRadius="16dp"
+    app:strokeColor="@color/aura_green_soft"
+    app:strokeWidth="1dp"
+    app:cardElevation="4dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/tv_log_exercise_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_primary"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tv_log_muscle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/aura_green"
+            android:textSize="12sp"
+            android:layout_marginBottom="12dp" />
+
+        <LinearLayout
+            android:id="@+id/layout_sets_control"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="12dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Sets:"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp"
+                android:layout_marginEnd="12dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_minus_set"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:text="−"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/aura_green"
+                app:backgroundTint="@color/bg_elevated"
+                app:cornerRadius="8dp"
+                android:padding="0dp"
+                android:minWidth="0dp" />
+
+            <TextView
+                android:id="@+id/tv_sets_count"
+                android:layout_width="40dp"
+                android:layout_height="wrap_content"
+                android:text="3"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:gravity="center" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_plus_set"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:text="+"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/aura_green"
+                app:backgroundTint="@color/bg_elevated"
+                app:cornerRadius="8dp"
+                android:padding="0dp"
+                android:minWidth="0dp" />
+        </LinearLayout>
+
+        <!-- WEIGHTED: weight + unit + reps -->
+        <LinearLayout
+            android:id="@+id/layout_weighted"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="visible">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="2"
+                    android:layout_marginEnd="8dp"
+                    android:hint="Weight"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                    app:boxStrokeColor="@color/aura_green"
+                    app:hintTextColor="@color/text_secondary">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/et_weight"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="numberDecimal"
+                        android:textColor="@color/text_primary" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_unit_toggle"
+                    android:layout_width="60dp"
+                    android:layout_height="56dp"
+                    android:text="kg"
+                    android:textColor="@color/aura_green"
+                    app:backgroundTint="@color/bg_elevated"
+                    app:cornerRadius="8dp"
+                    android:padding="0dp"
+                    android:minWidth="0dp" />
+            </LinearLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:hint="Reps"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                app:boxStrokeColor="@color/aura_green"
+                app:hintTextColor="@color/text_secondary">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/et_reps_weighted"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="number"
+                    android:textColor="@color/text_primary" />
+            </com.google.android.material.textfield.TextInputLayout>
+        </LinearLayout>
+
+        <!-- BODYWEIGHT: reps only -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/layout_bodyweight"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Reps"
+            android:visibility="gone"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            app:boxStrokeColor="@color/aura_green"
+            app:hintTextColor="@color/text_secondary">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_reps_bodyweight"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:textColor="@color/text_primary" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- TIMED: seconds -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/layout_timed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Duration (seconds)"
+            android:visibility="gone"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            app:boxStrokeColor="@color/aura_green"
+            app:hintTextColor="@color/text_secondary">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_seconds"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:textColor="@color/text_primary" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>
+
+==================================================
+File: app\src\main\res\values\colors.xml
+==================================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg_primary">#000000</color>
+    <color name="bg_surface">#0A0A0A</color>
+    <color name="bg_card">#151515</color>
+    <color name="bg_elevated">#1F1F1F</color>
+    <color name="aura_green">#00FF94</color>
+    <color name="aura_green_dark">#00CC77</color>
+    <color name="aura_green_glow">#3300FF94</color>
+    <color name="aura_green_soft">#1A00FF94</color>
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#B0B0B0</color>
+    <color name="text_hint">#666666</color>
+    <color name="text_disabled">#404040</color>
+    <color name="divider">#222222</color>
+    <color name="border">#2A2A2A</color>
+    <color name="error_red">#FF4444</color>
+    <color name="warning_orange">#FF9800</color>
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+    <color name="transparent">#00000000</color>
+</resources>
+
+==================================================
+File: app\src\main\res\values\strings.xml
+==================================================
+
+<resources>
+    <string name="app_name">FitAgent</string>
+</resources>
+
+==================================================
+File: app\src\main\res\values\themes.xml
+==================================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Base.Theme.FitAgent" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/aura_green</item>
+        <item name="colorOnPrimary">@color/black</item>
+        <item name="android:windowBackground">@color/bg_primary</item>
+        <item name="android:statusBarColor">@color/bg_primary</item>
+        <item name="android:navigationBarColor">@color/bg_primary</item>
+    </style>
+    <style name="Theme.FitAgent" parent="Base.Theme.FitAgent" />
+</resources>
+
+==================================================
+File: app\src\main\res\values-night\themes.xml
+==================================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Base.Theme.FitAgent" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/aura_green</item>
+        <item name="colorOnPrimary">@color/black</item>
+        <item name="android:windowBackground">@color/bg_primary</item>
+        <item name="android:statusBarColor">@color/bg_primary</item>
+        <item name="android:navigationBarColor">@color/bg_primary</item>
+    </style>
+    <style name="Theme.FitAgent" parent="Base.Theme.FitAgent" />
+</resources>
