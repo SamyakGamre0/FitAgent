@@ -1,5 +1,6 @@
 package com.FitAgent
 
+import android.content.Intent
 import android.os.Bundle
 import android.widget.ArrayAdapter
 import android.widget.Spinner
@@ -27,6 +28,11 @@ class MainActivity : AppCompatActivity() {
 
         btnGenerate.setOnClickListener {
             handleGenerateClick()
+        }
+
+        val btnHistory = findViewById<MaterialButton>(R.id.btn_view_history)
+        btnHistory?.setOnClickListener {
+            startActivity(Intent(this, HistoryActivity::class.java))
         }
     }
 
@@ -85,8 +91,9 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        Toast.makeText(this,
-            "Generating workout for $selectedGoal",
-            Toast.LENGTH_SHORT).show()
+        val intent = Intent(this, WorkoutPlanActivity::class.java)
+        intent.putExtra("GOAL", selectedGoal)
+        intent.putExtra("EQUIPMENT", selectedEquipment)
+        startActivity(intent)
     }
 }
