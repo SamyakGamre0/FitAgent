@@ -1,6 +1,7 @@
 package com.FitAgent.database
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
 import com.FitAgent.models.WorkoutLog
@@ -26,4 +27,15 @@ interface WorkoutDao {
 
     @Query("SELECT SUM(totalVolume) FROM workout_sessions")
     suspend fun getTotalVolumeLifted(): Double?
+
+    @Query("SELECT muscleGroup FROM workout_logs GROUP BY muscleGroup ORDER BY COUNT(*) DESC LIMIT 1")
+    suspend fun getMostTrainedMuscle(): String?
+
+    // NEW: Delete a specific workout session
+    @Delete
+    suspend fun deleteSession(session: WorkoutSession)
+
+    // NEW: Delete all logs belonging to a session
+    @Query("DELETE FROM workout_logs WHERE sessionId = :sessionId")
+    suspend fun deleteLogsForSession(sessionId: Long)
 }

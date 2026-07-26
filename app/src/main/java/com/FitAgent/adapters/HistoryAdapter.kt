@@ -9,7 +9,8 @@ import com.FitAgent.R
 import com.FitAgent.models.WorkoutSession
 
 class HistoryAdapter(
-    private val sessions: List<WorkoutSession>
+    private val sessions: MutableList<WorkoutSession>,
+    private val onSessionClick: (WorkoutSession) -> Unit
 ) : RecyclerView.Adapter<HistoryAdapter.HistoryViewHolder>() {
 
     class HistoryViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -28,8 +29,28 @@ class HistoryAdapter(
         val s = sessions[position]
         holder.tvDate.text = s.date
         holder.tvGoal.text = "${s.goal} • ${s.equipment}"
-        holder.tvStats.text = "${s.exerciseCount} exercises • ${s.totalVolume} volume • ⏱ ${s.duration}"
+        val cleanVolume = String.format("%.1f", s.totalVolume)
+        holder.tvStats.text = "${s.exerciseCount} exercises • $cleanVolume vol • ⏱ ${s.duration}"
+
+        holder.itemView.setOnClickListener { onSessionClick(s) }
     }
 
     override fun getItemCount() = sessions.size
+
+    // NEW: Remove item at position
+    fun removeItem(position: Int): WorkoutSession {
+        val removed = sessions[position]
+        sessions.removeAt(position)
+        notifyItemRemoved(position)
+        return removed
+    }
+
+    // NEW: Restore item at position (for UNDO)
+    fun restoreItem(session: WorkoutSession, position: Int) {
+        sessions.add(position, session)
+        notifyItemInserted(position)
+    }
+
+    // NEW: Get session at a specific position
+    fun getSessionAt(position: Int): WorkoutSession = sessions[position]
 }

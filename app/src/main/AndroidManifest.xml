@@ -25,6 +25,8 @@
         <activity android:name=".WorkoutPlanActivity" />
         <activity android:name=".LoggerActivity" />
         <activity android:name=".HistoryActivity" />
+        <activity android:name=".SessionDetailActivity" />
+        <activity android:name=".ProgressActivity" />
 
     </application>
 
