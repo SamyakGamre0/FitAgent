@@ -84,9 +84,25 @@
                 app:cornerRadius="8dp"
                 android:padding="0dp"
                 android:minWidth="0dp" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_rest_timer"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="Rest ⏱"
+                android:textSize="12sp"
+                android:textColor="@color/aura_green"
+                app:backgroundTint="@color/bg_elevated"
+                app:cornerRadius="8dp"
+                android:padding="8dp"
+                android:minWidth="0dp" />
         </LinearLayout>
 
-        <!-- WEIGHTED: weight + unit + reps -->
         <LinearLayout
             android:id="@+id/layout_weighted"
             android:layout_width="match_parent"
@@ -147,7 +163,6 @@
             </com.google.android.material.textfield.TextInputLayout>
         </LinearLayout>
 
-        <!-- BODYWEIGHT: reps only -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/layout_bodyweight"
             android:layout_width="match_parent"
@@ -166,7 +181,6 @@
                 android:textColor="@color/text_primary" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- TIMED: seconds -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/layout_timed"
             android:layout_width="match_parent"

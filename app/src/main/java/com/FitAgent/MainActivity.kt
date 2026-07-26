@@ -34,6 +34,11 @@ class MainActivity : AppCompatActivity() {
         btnHistory?.setOnClickListener {
             startActivity(Intent(this, HistoryActivity::class.java))
         }
+
+        val btnProgress = findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_view_progress)
+        btnProgress?.setOnClickListener {
+            startActivity(android.content.Intent(this, ProgressActivity::class.java))
+        }
     }
 
     private fun setupSpinners() {

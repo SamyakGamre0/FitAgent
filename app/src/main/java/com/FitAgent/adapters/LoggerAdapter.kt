@@ -1,5 +1,13 @@
 package com.FitAgent.adapters
 
+import android.app.AlertDialog
+import android.content.Context
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.LayoutInflater
@@ -7,6 +15,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.recyclerview.widget.RecyclerView
 import com.FitAgent.R
 import com.FitAgent.models.Exercise
@@ -34,6 +43,7 @@ class LoggerAdapter(
         val btnMinus: MaterialButton = view.findViewById(R.id.btn_minus_set)
         val btnPlus: MaterialButton = view.findViewById(R.id.btn_plus_set)
         val tvSets: TextView = view.findViewById(R.id.tv_sets_count)
+        val btnRestTimer: MaterialButton = view.findViewById(R.id.btn_rest_timer)
 
         val layoutWeighted: LinearLayout = view.findViewById(R.id.layout_weighted)
         val layoutBodyweight: TextInputLayout = view.findViewById(R.id.layout_bodyweight)
@@ -70,31 +80,26 @@ class LoggerAdapter(
             ExerciseType.TIMED -> holder.layoutTimed.visibility = View.VISIBLE
         }
 
-        // Restore typed values
         holder.etWeight.setText(if (logged.weight > 0) logged.weight.toString() else "")
         holder.etRepsWeighted.setText(if (logged.reps > 0) logged.reps.toString() else "")
         holder.etRepsBodyweight.setText(if (logged.reps > 0) logged.reps.toString() else "")
         holder.etSeconds.setText(if (logged.seconds > 0) logged.seconds.toString() else "")
 
-        // Remove old watchers
         holder.etWeight.removeTextChangedListener(holder.etWeight.tag as? TextWatcher)
         holder.etRepsWeighted.removeTextChangedListener(holder.etRepsWeighted.tag as? TextWatcher)
         holder.etRepsBodyweight.removeTextChangedListener(holder.etRepsBodyweight.tag as? TextWatcher)
         holder.etSeconds.removeTextChangedListener(holder.etSeconds.tag as? TextWatcher)
 
-        // Create new watchers
         val weightWatcher = simpleWatcher { logged.weight = it.toDoubleOrNull() ?: 0.0 }
         val repsWeightedWatcher = simpleWatcher { logged.reps = it.toIntOrNull() ?: 0 }
         val repsBodyweightWatcher = simpleWatcher { logged.reps = it.toIntOrNull() ?: 0 }
         val secondsWatcher = simpleWatcher { logged.seconds = it.toIntOrNull() ?: 0 }
 
-        // Attach new watchers
         holder.etWeight.addTextChangedListener(weightWatcher)
         holder.etRepsWeighted.addTextChangedListener(repsWeightedWatcher)
         holder.etRepsBodyweight.addTextChangedListener(repsBodyweightWatcher)
         holder.etSeconds.addTextChangedListener(secondsWatcher)
 
-        // Tag them so we can remove them later
         holder.etWeight.tag = weightWatcher
         holder.etRepsWeighted.tag = repsWeightedWatcher
         holder.etRepsBodyweight.tag = repsBodyweightWatcher
@@ -117,6 +122,85 @@ class LoggerAdapter(
             logged.unit = if (logged.unit == "kg") "lbs" else "kg"
             holder.btnUnit.text = logged.unit
         }
+
+        // NEW: Rest timer button opens countdown dialog
+        holder.btnRestTimer.setOnClickListener {
+            showRestTimerDialog(holder.itemView.context)
+        }
+    }
+
+    private fun showRestTimerDialog(context: Context) {
+        val dialogView = LayoutInflater.from(context)
+            .inflate(R.layout.dialog_rest_timer, null)
+
+        val tvCountdown = dialogView.findViewById<TextView>(R.id.tv_rest_countdown)
+        val btnMinus15 = dialogView.findViewById<MaterialButton>(R.id.btn_minus_15)
+        val btnPlus15 = dialogView.findViewById<MaterialButton>(R.id.btn_plus_15)
+        val btnCancel = dialogView.findViewById<MaterialButton>(R.id.btn_cancel_rest)
+
+        val dialog = AlertDialog.Builder(context)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+
+        var secondsLeft = 60
+        tvCountdown.text = secondsLeft.toString()
+
+        val handler = Handler(Looper.getMainLooper())
+        val runnable = object : Runnable {
+            override fun run() {
+                secondsLeft--
+                tvCountdown.text = secondsLeft.toString()
+                if (secondsLeft <= 0) {
+                    vibrate(context)
+                    Toast.makeText(context, "Rest Over! 💪 Let's go!", Toast.LENGTH_LONG).show()
+                    dialog.dismiss()
+                } else {
+                    handler.postDelayed(this, 1000)
+                }
+            }
+        }
+        handler.postDelayed(runnable, 1000)
+
+        btnMinus15.setOnClickListener {
+            secondsLeft = maxOf(1, secondsLeft - 15)
+            tvCountdown.text = secondsLeft.toString()
+        }
+        btnPlus15.setOnClickListener {
+            secondsLeft += 15
+            tvCountdown.text = secondsLeft.toString()
+        }
+        btnCancel.setOnClickListener {
+            handler.removeCallbacks(runnable)
+            dialog.dismiss()
+        }
+
+        dialog.setOnDismissListener {
+            handler.removeCallbacks(runnable)
+        }
+
+        dialog.show()
+    }
+
+    private fun vibrate(context: Context) {
+        try {
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                vibratorManager.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(500)
+            }
+        } catch (e: Exception) {
+            // Vibrator not available, silently skip
+        }
     }
 
     private fun simpleWatcher(action: (String) -> Unit) = object : TextWatcher {
@@ -125,6 +209,5 @@ class LoggerAdapter(
         override fun afterTextChanged(s: Editable?) { action(s.toString()) }
     }
 
-    // THIS IS THE MISSING PIECE! It tells the app how many items are in the list.
     override fun getItemCount() = loggedList.size
 }
