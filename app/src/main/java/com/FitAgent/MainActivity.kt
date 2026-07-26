@@ -17,6 +17,15 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Check if user has completed profile setup
+        if (!com.FitAgent.utils.ProfileManager.isProfileComplete(this)) {
+            val intent = Intent(this, ProfileSetupActivity::class.java)
+            startActivity(intent)
+            finish()
+            return
+        }
+
         setContentView(R.layout.activity_main)
 
         spinnerGoal = findViewById(R.id.spinner_goal)
