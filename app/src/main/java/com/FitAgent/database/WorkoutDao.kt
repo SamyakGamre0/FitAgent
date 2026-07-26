@@ -36,4 +36,33 @@ interface WorkoutDao {
 
     @Query("DELETE FROM workout_logs WHERE sessionId = :sessionId")
     suspend fun deleteLogsForSession(sessionId: Long)
+
+    // NEW: Get top exercises by frequency, with their max weight/reps/seconds
+    // Cleans "(Set 1)", "(Set 2)" suffixes so all sets of same exercise group together
+    @Query("""
+        SELECT 
+            TRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(exerciseName,
+                ' (Set 1)', ''), ' (Set 2)', ''), ' (Set 3)', ''), ' (Set 4)', ''), 
+                ' (Set 5)', ''), ' (Set 6)', ''), ' (Set 7)', ''), ' (Set 8)', ''),
+                ' (Set 9)', ''), ' (Set 10)', '')) as cleanName,
+            muscleGroup,
+            MAX(weight) as maxWeight,
+            MAX(reps) as maxReps,
+            unit,
+            COUNT(*) as frequency
+        FROM workout_logs
+        GROUP BY cleanName
+        ORDER BY frequency DESC
+        LIMIT 3
+    """)
+    suspend fun getTopLifts(): List<TopLiftResult>
 }
+
+data class TopLiftResult(
+    val cleanName: String,
+    val muscleGroup: String,
+    val maxWeight: Double,
+    val maxReps: Int,
+    val unit: String,
+    val frequency: Int
+)
