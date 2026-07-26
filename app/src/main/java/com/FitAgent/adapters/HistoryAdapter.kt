@@ -7,6 +7,8 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.FitAgent.R
 import com.FitAgent.models.WorkoutSession
+import com.FitAgent.utils.ProfileManager
+import com.FitAgent.utils.UnitConverter
 
 class HistoryAdapter(
     private val sessions: MutableList<WorkoutSession>,
@@ -27,10 +29,20 @@ class HistoryAdapter(
 
     override fun onBindViewHolder(holder: HistoryViewHolder, position: Int) {
         val s = sessions[position]
+        val context = holder.itemView.context
+        val weightUnit = ProfileManager.getWeightUnit(context)
+
         holder.tvDate.text = s.date
         holder.tvGoal.text = "${s.goal} • ${s.equipment}"
-        val cleanVolume = String.format("%.1f", s.totalVolume)
-        holder.tvStats.text = "${s.exerciseCount} exercises • $cleanVolume vol • ⏱ ${s.duration}"
+
+        // Convert volume to user's preferred unit
+        val displayVolume = if (weightUnit == "lbs") {
+            UnitConverter.kgToLbs(s.totalVolume)
+        } else {
+            s.totalVolume
+        }
+        val cleanVolume = String.format("%.1f", displayVolume)
+        holder.tvStats.text = "${s.exerciseCount} exercises • $cleanVolume $weightUnit • ⏱ ${s.duration}"
 
         holder.itemView.setOnClickListener { onSessionClick(s) }
     }

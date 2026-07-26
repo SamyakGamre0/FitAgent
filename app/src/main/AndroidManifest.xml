@@ -15,6 +15,7 @@
         android:theme="@style/Theme.FitAgent"
         tools:targetApi="31">
         <activity android:name=".ProfileSetupActivity" />
+        <activity android:name=".EditProfileActivity" />
 
         <activity
             android:name=".MainActivity"
