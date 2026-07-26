@@ -123,7 +123,6 @@ class LoggerAdapter(
             holder.btnUnit.text = logged.unit
         }
 
-        // NEW: Rest timer button opens countdown dialog
         holder.btnRestTimer.setOnClickListener {
             showRestTimerDialog(holder.itemView.context)
         }

@@ -44,7 +44,7 @@ class ProgressActivity : AppCompatActivity() {
 
             // Most trained muscle
             val topMuscle = db.workoutDao().getMostTrainedMuscle()
-            tvTopMuscle.text = topMuscle?.muscleGroup ?: "None yet"
+            tvTopMuscle.text = topMuscle ?: "None yet"
         }
     }
 
