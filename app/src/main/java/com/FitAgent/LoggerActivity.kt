@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.FitAgent.adapters.LoggedExercise
 import com.FitAgent.adapters.LoggerAdapter
+import com.FitAgent.adapters.SetData
 import com.FitAgent.database.AppDatabase
 import com.FitAgent.models.ExerciseType
 import com.FitAgent.models.WorkoutLog
@@ -48,7 +49,11 @@ class LoggerActivity : AppCompatActivity() {
         val equipment = intent.getStringExtra("EQUIPMENT") ?: "None"
 
         val exercises = WorkoutGenerator.generate(goal, equipment)
-        loggedList = exercises.map { LoggedExercise(it, sets = it.sets) }.toMutableList()
+        loggedList = exercises.map { ex ->
+            val initialSets = mutableListOf<SetData>()
+            repeat(ex.sets) { initialSets.add(SetData()) }
+            LoggedExercise(ex, sets = ex.sets, setDataList = initialSets)
+        }.toMutableList()
 
         val recycler = findViewById<RecyclerView>(R.id.recycler_logger)
         recycler.layoutManager = LinearLayoutManager(this)
@@ -61,7 +66,6 @@ class LoggerActivity : AppCompatActivity() {
             saveWorkoutToDatabase(goal, equipment)
         }
 
-        // NEW: Listen for when the user presses the back button
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 showExitConfirmation()
@@ -69,14 +73,11 @@ class LoggerActivity : AppCompatActivity() {
         })
     }
 
-    // NEW: Show a pop-up asking if they really want to quit
     private fun showExitConfirmation() {
         MaterialAlertDialogBuilder(this)
-            .setTitle("Quit Workout? 🏃‍♂️")
-            .setMessage("Your progress will be lost if you leave now. Are you sure?")
-            .setPositiveButton("Keep Going 💪") { dialog, _ ->
-                dialog.dismiss()
-            }
+            .setTitle("Quit Workout? 🏃♂️")
+            .setMessage("Your progress will be lost if you leave now.")
+            .setPositiveButton("Keep Going 💪") { dialog, _ -> dialog.dismiss() }
             .setNegativeButton("Quit") { _, _ ->
                 handler.removeCallbacks(timerRunnable)
                 finish()
@@ -91,77 +92,89 @@ class LoggerActivity : AppCompatActivity() {
 
     private fun saveWorkoutToDatabase(goal: String, equipment: String) {
         val validLogged = loggedList.filter { logged ->
-            when (logged.exercise.type) {
-                ExerciseType.WEIGHTED -> logged.weight > 0 && logged.reps > 0
-                ExerciseType.BODYWEIGHT -> logged.reps > 0
-                ExerciseType.TIMED -> logged.seconds > 0
+            logged.setDataList.any { setData ->
+                when (logged.exercise.type) {
+                    ExerciseType.WEIGHTED -> setData.weight > 0 && setData.reps > 0
+                    ExerciseType.BODYWEIGHT -> setData.reps > 0
+                    ExerciseType.TIMED -> setData.seconds > 0
+                }
             }
         }
 
         if (validLogged.isEmpty()) {
-            Toast.makeText(this,
-                "Please log at least one exercise",
-                Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Please log at least one set", Toast.LENGTH_SHORT).show()
             return
         }
 
-        val totalVolume = validLogged.sumOf { logged ->
-            when (logged.exercise.type) {
-                ExerciseType.WEIGHTED -> logged.weight * logged.reps * logged.sets
-                ExerciseType.BODYWEIGHT -> (logged.reps * logged.sets).toDouble()
-                ExerciseType.TIMED -> (logged.seconds * logged.sets).toDouble()
-            }
-        }
+        var totalVolume = 0.0
+        var totalExercises = 0
 
         val mins = seconds / 60
         val secs = seconds % 60
         val duration = String.format("%02d:%02d", mins, secs)
-        val date = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault())
-            .format(Date())
-
-        val session = WorkoutSession(
-            date = date,
-            goal = goal,
-            equipment = equipment,
-            duration = duration,
-            totalVolume = totalVolume,
-            exerciseCount = validLogged.size
-        )
+        val date = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()).format(Date())
 
         val db = AppDatabase.getDatabase(this)
 
         lifecycleScope.launch {
-            val sessionId = db.workoutDao().insertSession(session)
+            val tempSession = WorkoutSession(
+                date = date,
+                goal = goal,
+                equipment = equipment,
+                duration = duration,
+                totalVolume = 0.0,
+                exerciseCount = 0
+            )
+            val sessionId = db.workoutDao().insertSession(tempSession)
 
             validLogged.forEach { logged ->
-                val (weight, reps, unit) = when (logged.exercise.type) {
-                    ExerciseType.WEIGHTED -> Triple(logged.weight, logged.reps, logged.unit)
-                    ExerciseType.BODYWEIGHT -> Triple(0.0, logged.reps, "reps")
-                    ExerciseType.TIMED -> Triple(0.0, logged.seconds, "sec")
+                val validSets = logged.setDataList.filter { sd ->
+                    when (logged.exercise.type) {
+                        ExerciseType.WEIGHTED -> sd.weight > 0 && sd.reps > 0
+                        ExerciseType.BODYWEIGHT -> sd.reps > 0
+                        ExerciseType.TIMED -> sd.seconds > 0
+                    }
                 }
 
-                val volume = when (logged.exercise.type) {
-                    ExerciseType.WEIGHTED -> logged.weight * logged.reps * logged.sets
-                    ExerciseType.BODYWEIGHT -> (logged.reps * logged.sets).toDouble()
-                    ExerciseType.TIMED -> (logged.seconds * logged.sets).toDouble()
-                }
+                if (validSets.isNotEmpty()) {
+                    totalExercises++
+                    validSets.forEachIndexed { index, sd ->
+                        val (weight, reps, unit) = when (logged.exercise.type) {
+                            ExerciseType.WEIGHTED -> Triple(sd.weight, sd.reps, logged.unit)
+                            ExerciseType.BODYWEIGHT -> Triple(0.0, sd.reps, "reps")
+                            ExerciseType.TIMED -> Triple(0.0, sd.seconds, "sec")
+                        }
+                        val volume = when (logged.exercise.type) {
+                            ExerciseType.WEIGHTED -> sd.weight * sd.reps
+                            ExerciseType.BODYWEIGHT -> sd.reps.toDouble()
+                            ExerciseType.TIMED -> sd.seconds.toDouble()
+                        }
+                        totalVolume += volume
 
-                val log = WorkoutLog(
-                    sessionId = sessionId,
-                    exerciseName = logged.exercise.name,
-                    muscleGroup = logged.exercise.muscleGroup,
-                    sets = logged.sets,
-                    weight = weight,
-                    reps = reps,
-                    unit = unit,
-                    volume = volume
-                )
-                db.workoutDao().insertLog(log)
+                        val log = WorkoutLog(
+                            sessionId = sessionId,
+                            exerciseName = "${logged.exercise.name} (Set ${index + 1})",
+                            muscleGroup = logged.exercise.muscleGroup,
+                            sets = 1,
+                            weight = weight,
+                            reps = reps,
+                            unit = unit,
+                            volume = volume
+                        )
+                        db.workoutDao().insertLog(log)
+                    }
+                }
             }
 
-            Toast.makeText(this@LoggerActivity,
-                "✅ Workout Saved!",
-                Toast.LENGTH_LONG).show()
+            val updatedSession = tempSession.copy(
+                id = sessionId,
+                totalVolume = totalVolume,
+                exerciseCount = totalExercises
+            )
+            db.workoutDao().deleteSession(tempSession.copy(id = sessionId))
+            db.workoutDao().insertSession(updatedSession)
+
+            Toast.makeText(this@LoggerActivity, "✅ Workout Saved!", Toast.LENGTH_LONG).show()
 
             handler.removeCallbacks(timerRunnable)
             finish()

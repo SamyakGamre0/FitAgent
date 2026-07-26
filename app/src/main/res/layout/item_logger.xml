@@ -34,7 +34,6 @@
             android:layout_marginBottom="12dp" />
 
         <LinearLayout
-            android:id="@+id/layout_sets_control"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
@@ -85,6 +84,18 @@
                 android:padding="0dp"
                 android:minWidth="0dp" />
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_unit_toggle"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="kg"
+                android:textColor="@color/aura_green"
+                app:backgroundTint="@color/bg_elevated"
+                app:cornerRadius="8dp"
+                android:padding="8dp"
+                android:minWidth="0dp"
+                android:layout_marginStart="12dp" />
+
             <View
                 android:layout_width="0dp"
                 android:layout_height="0dp"
@@ -104,100 +115,10 @@
         </LinearLayout>
 
         <LinearLayout
-            android:id="@+id/layout_weighted"
+            android:id="@+id/sets_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:visibility="visible">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal">
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="2"
-                    android:layout_marginEnd="8dp"
-                    android:hint="Weight"
-                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                    app:boxStrokeColor="@color/aura_green"
-                    app:hintTextColor="@color/text_secondary">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/et_weight"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="numberDecimal"
-                        android:textColor="@color/text_primary" />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btn_unit_toggle"
-                    android:layout_width="60dp"
-                    android:layout_height="56dp"
-                    android:text="kg"
-                    android:textColor="@color/aura_green"
-                    app:backgroundTint="@color/bg_elevated"
-                    app:cornerRadius="8dp"
-                    android:padding="0dp"
-                    android:minWidth="0dp" />
-            </LinearLayout>
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:hint="Reps"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                app:boxStrokeColor="@color/aura_green"
-                app:hintTextColor="@color/text_secondary">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/et_reps_weighted"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="number"
-                    android:textColor="@color/text_primary" />
-            </com.google.android.material.textfield.TextInputLayout>
-        </LinearLayout>
-
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/layout_bodyweight"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Reps"
-            android:visibility="gone"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-            app:boxStrokeColor="@color/aura_green"
-            app:hintTextColor="@color/text_secondary">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/et_reps_bodyweight"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="number"
-                android:textColor="@color/text_primary" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/layout_timed"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Duration (seconds)"
-            android:visibility="gone"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-            app:boxStrokeColor="@color/aura_green"
-            app:hintTextColor="@color/text_secondary">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/et_seconds"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="number"
-                android:textColor="@color/text_primary" />
-        </com.google.android.material.textfield.TextInputLayout>
+            android:orientation="vertical" />
 
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

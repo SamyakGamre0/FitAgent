@@ -9,28 +9,35 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.text.Editable
+import android.text.InputType
 import android.text.TextWatcher
+import android.util.TypedValue
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.FitAgent.R
 import com.FitAgent.models.Exercise
 import com.FitAgent.models.ExerciseType
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.textfield.TextInputEditText
-import com.google.android.material.textfield.TextInputLayout
+
+data class SetData(
+    var weight: Double = 0.0,
+    var reps: Int = 0,
+    var seconds: Int = 0
+)
 
 data class LoggedExercise(
     val exercise: Exercise,
-    var weight: Double = 0.0,
-    var reps: Int = 0,
-    var seconds: Int = 0,
     var sets: Int = 3,
-    var unit: String = "kg"
+    var unit: String = "kg",
+    val setDataList: MutableList<SetData> = mutableListOf()
 )
 
 class LoggerAdapter(
@@ -44,16 +51,8 @@ class LoggerAdapter(
         val btnPlus: MaterialButton = view.findViewById(R.id.btn_plus_set)
         val tvSets: TextView = view.findViewById(R.id.tv_sets_count)
         val btnRestTimer: MaterialButton = view.findViewById(R.id.btn_rest_timer)
-
-        val layoutWeighted: LinearLayout = view.findViewById(R.id.layout_weighted)
-        val layoutBodyweight: TextInputLayout = view.findViewById(R.id.layout_bodyweight)
-        val layoutTimed: TextInputLayout = view.findViewById(R.id.layout_timed)
-
-        val etWeight: TextInputEditText = view.findViewById(R.id.et_weight)
         val btnUnit: MaterialButton = view.findViewById(R.id.btn_unit_toggle)
-        val etRepsWeighted: TextInputEditText = view.findViewById(R.id.et_reps_weighted)
-        val etRepsBodyweight: TextInputEditText = view.findViewById(R.id.et_reps_bodyweight)
-        val etSeconds: TextInputEditText = view.findViewById(R.id.et_seconds)
+        val setsContainer: LinearLayout = view.findViewById(R.id.sets_container)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): LoggerViewHolder {
@@ -64,68 +63,178 @@ class LoggerAdapter(
 
     override fun onBindViewHolder(holder: LoggerViewHolder, position: Int) {
         val logged = loggedList[position]
+        val context = holder.itemView.context
 
         holder.tvName.text = logged.exercise.name
         holder.tvMuscle.text = "Target: ${logged.exercise.muscleGroup}"
         holder.tvSets.text = logged.sets.toString()
         holder.btnUnit.text = logged.unit
 
-        holder.layoutWeighted.visibility = View.GONE
-        holder.layoutBodyweight.visibility = View.GONE
-        holder.layoutTimed.visibility = View.GONE
-
-        when (logged.exercise.type) {
-            ExerciseType.WEIGHTED -> holder.layoutWeighted.visibility = View.VISIBLE
-            ExerciseType.BODYWEIGHT -> holder.layoutBodyweight.visibility = View.VISIBLE
-            ExerciseType.TIMED -> holder.layoutTimed.visibility = View.VISIBLE
+        while (logged.setDataList.size < logged.sets) {
+            logged.setDataList.add(SetData())
+        }
+        while (logged.setDataList.size > logged.sets) {
+            logged.setDataList.removeAt(logged.setDataList.size - 1)
         }
 
-        holder.etWeight.setText(if (logged.weight > 0) logged.weight.toString() else "")
-        holder.etRepsWeighted.setText(if (logged.reps > 0) logged.reps.toString() else "")
-        holder.etRepsBodyweight.setText(if (logged.reps > 0) logged.reps.toString() else "")
-        holder.etSeconds.setText(if (logged.seconds > 0) logged.seconds.toString() else "")
-
-        holder.etWeight.removeTextChangedListener(holder.etWeight.tag as? TextWatcher)
-        holder.etRepsWeighted.removeTextChangedListener(holder.etRepsWeighted.tag as? TextWatcher)
-        holder.etRepsBodyweight.removeTextChangedListener(holder.etRepsBodyweight.tag as? TextWatcher)
-        holder.etSeconds.removeTextChangedListener(holder.etSeconds.tag as? TextWatcher)
-
-        val weightWatcher = simpleWatcher { logged.weight = it.toDoubleOrNull() ?: 0.0 }
-        val repsWeightedWatcher = simpleWatcher { logged.reps = it.toIntOrNull() ?: 0 }
-        val repsBodyweightWatcher = simpleWatcher { logged.reps = it.toIntOrNull() ?: 0 }
-        val secondsWatcher = simpleWatcher { logged.seconds = it.toIntOrNull() ?: 0 }
-
-        holder.etWeight.addTextChangedListener(weightWatcher)
-        holder.etRepsWeighted.addTextChangedListener(repsWeightedWatcher)
-        holder.etRepsBodyweight.addTextChangedListener(repsBodyweightWatcher)
-        holder.etSeconds.addTextChangedListener(secondsWatcher)
-
-        holder.etWeight.tag = weightWatcher
-        holder.etRepsWeighted.tag = repsWeightedWatcher
-        holder.etRepsBodyweight.tag = repsBodyweightWatcher
-        holder.etSeconds.tag = secondsWatcher
+        buildSetsUI(context, holder, logged)
 
         holder.btnMinus.setOnClickListener {
             if (logged.sets > 1) {
                 logged.sets--
+                logged.setDataList.removeAt(logged.setDataList.size - 1)
                 holder.tvSets.text = logged.sets.toString()
+                buildSetsUI(context, holder, logged)
             }
         }
         holder.btnPlus.setOnClickListener {
             if (logged.sets < 10) {
                 logged.sets++
+                logged.setDataList.add(SetData())
                 holder.tvSets.text = logged.sets.toString()
+                buildSetsUI(context, holder, logged)
             }
         }
 
         holder.btnUnit.setOnClickListener {
             logged.unit = if (logged.unit == "kg") "lbs" else "kg"
             holder.btnUnit.text = logged.unit
+            buildSetsUI(context, holder, logged)
         }
 
         holder.btnRestTimer.setOnClickListener {
-            showRestTimerDialog(holder.itemView.context)
+            showRestTimerDialog(context)
         }
+    }
+
+    private fun buildSetsUI(context: Context, holder: LoggerViewHolder, logged: LoggedExercise) {
+        holder.setsContainer.removeAllViews()
+
+        val greenColor = ContextCompat.getColor(context, R.color.aura_green)
+        val secondaryColor = ContextCompat.getColor(context, R.color.text_secondary)
+        val primaryColor = ContextCompat.getColor(context, R.color.text_primary)
+
+        val header = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { setMargins(0, 0, 0, dp(context, 8)) }
+        }
+        header.addView(makeHeader(context, "SET", 1f, secondaryColor))
+        when (logged.exercise.type) {
+            ExerciseType.WEIGHTED -> {
+                header.addView(makeHeader(context, logged.unit.uppercase(), 2f, secondaryColor))
+                header.addView(makeHeader(context, "REPS", 2f, secondaryColor))
+            }
+            ExerciseType.BODYWEIGHT -> {
+                header.addView(makeHeader(context, "REPS", 4f, secondaryColor))
+            }
+            ExerciseType.TIMED -> {
+                header.addView(makeHeader(context, "SECONDS", 4f, secondaryColor))
+            }
+        }
+        holder.setsContainer.addView(header)
+
+        for (i in 0 until logged.sets) {
+            val setData = logged.setDataList[i]
+            val row = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { setMargins(0, dp(context, 4), 0, dp(context, 4)) }
+            }
+
+            val setNumber = TextView(context).apply {
+                text = (i + 1).toString()
+                setTextColor(greenColor)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            row.addView(setNumber)
+
+            when (logged.exercise.type) {
+                ExerciseType.WEIGHTED -> {
+                    val weightEt = makeInput(context, primaryColor, InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
+                    weightEt.setText(if (setData.weight > 0) setData.weight.toString() else "")
+                    weightEt.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 2f).apply {
+                        setMargins(dp(context, 4), 0, dp(context, 4), 0)
+                    }
+                    weightEt.addTextChangedListener(simpleWatcher {
+                        setData.weight = it.toDoubleOrNull() ?: 0.0
+                    })
+                    row.addView(weightEt)
+
+                    val repsEt = makeInput(context, primaryColor, InputType.TYPE_CLASS_NUMBER)
+                    repsEt.setText(if (setData.reps > 0) setData.reps.toString() else "")
+                    repsEt.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 2f).apply {
+                        setMargins(dp(context, 4), 0, dp(context, 4), 0)
+                    }
+                    repsEt.addTextChangedListener(simpleWatcher {
+                        setData.reps = it.toIntOrNull() ?: 0
+                    })
+                    row.addView(repsEt)
+                }
+                ExerciseType.BODYWEIGHT -> {
+                    val repsEt = makeInput(context, primaryColor, InputType.TYPE_CLASS_NUMBER)
+                    repsEt.setText(if (setData.reps > 0) setData.reps.toString() else "")
+                    repsEt.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 4f).apply {
+                        setMargins(dp(context, 4), 0, dp(context, 4), 0)
+                    }
+                    repsEt.addTextChangedListener(simpleWatcher {
+                        setData.reps = it.toIntOrNull() ?: 0
+                    })
+                    row.addView(repsEt)
+                }
+                ExerciseType.TIMED -> {
+                    val secEt = makeInput(context, primaryColor, InputType.TYPE_CLASS_NUMBER)
+                    secEt.setText(if (setData.seconds > 0) setData.seconds.toString() else "")
+                    secEt.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 4f).apply {
+                        setMargins(dp(context, 4), 0, dp(context, 4), 0)
+                    }
+                    secEt.addTextChangedListener(simpleWatcher {
+                        setData.seconds = it.toIntOrNull() ?: 0
+                    })
+                    row.addView(secEt)
+                }
+            }
+
+            holder.setsContainer.addView(row)
+        }
+    }
+
+    private fun makeHeader(context: Context, text: String, weight: Float, color: Int): TextView {
+        return TextView(context).apply {
+            this.text = text
+            setTextColor(color)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, weight)
+        }
+    }
+
+    private fun makeInput(context: Context, textColor: Int, inputTypeFlag: Int): EditText {
+        return EditText(context).apply {
+            setTextColor(textColor)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            gravity = Gravity.CENTER
+            inputType = inputTypeFlag
+            setBackgroundResource(android.R.drawable.editbox_background_normal)
+            setPadding(dp(context, 8), dp(context, 6), dp(context, 8), dp(context, 6))
+        }
+    }
+
+    private fun dp(context: Context, value: Int): Int {
+        return (value * context.resources.displayMetrics.density).toInt()
+    }
+
+    private fun simpleWatcher(action: (String) -> Unit) = object : TextWatcher {
+        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        override fun afterTextChanged(s: Editable?) { action(s.toString()) }
     }
 
     private fun showRestTimerDialog(context: Context) {
@@ -152,7 +261,7 @@ class LoggerAdapter(
                 tvCountdown.text = secondsLeft.toString()
                 if (secondsLeft <= 0) {
                     vibrate(context)
-                    Toast.makeText(context, "Rest Over! 💪 Let's go!", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Rest Over! 💪", Toast.LENGTH_LONG).show()
                     dialog.dismiss()
                 } else {
                     handler.postDelayed(this, 1000)
@@ -184,28 +293,19 @@ class LoggerAdapter(
     private fun vibrate(context: Context) {
         try {
             val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
-                vibratorManager.defaultVibrator
+                val vm = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                vm.defaultVibrator
             } else {
                 @Suppress("DEPRECATION")
                 context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
             }
-
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 vibrator.vibrate(VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE))
             } else {
                 @Suppress("DEPRECATION")
                 vibrator.vibrate(500)
             }
-        } catch (e: Exception) {
-            // Vibrator not available, silently skip
-        }
-    }
-
-    private fun simpleWatcher(action: (String) -> Unit) = object : TextWatcher {
-        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-        override fun afterTextChanged(s: Editable?) { action(s.toString()) }
+        } catch (e: Exception) {}
     }
 
     override fun getItemCount() = loggedList.size
