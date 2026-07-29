@@ -16,6 +16,7 @@ import com.FitAgent.R
 import com.FitAgent.SessionDetailActivity
 import com.FitAgent.WorkoutPlanActivity
 import com.FitAgent.adapters.HistoryAdapter
+import com.FitAgent.adapters.TopLiftAdapter
 import com.FitAgent.database.AppDatabase
 import com.FitAgent.utils.ProfileManager
 import com.FitAgent.utils.UnitConverter
@@ -26,18 +27,16 @@ class HomeFragment : Fragment() {
 
     private lateinit var tvGreeting: TextView
     private lateinit var tvGreetingSub: TextView
-    private lateinit var tvBmiValue: TextView
-    private lateinit var tvBmiCategory: TextView
-    private lateinit var tvHeight: TextView
-    private lateinit var tvWeight: TextView
     private lateinit var tvWorkoutPreview: TextView
     private lateinit var tvStatWorkouts: TextView
     private lateinit var tvStatVolume: TextView
     private lateinit var tvStatVolumeLabel: TextView
     private lateinit var tvNoRecent: TextView
+    private lateinit var tvNoLifts: TextView
     private lateinit var btnStartWorkout: LinearLayout
     private lateinit var btnFullHistory: MaterialButton
     private lateinit var recyclerRecent: RecyclerView
+    private lateinit var recyclerTopLifts: RecyclerView
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -58,25 +57,25 @@ class HomeFragment : Fragment() {
         super.onResume()
         loadProfileData()
         loadStats()
+        loadTopLifts()
         loadRecentWorkouts()
     }
 
     private fun bindViews(view: View) {
         tvGreeting = view.findViewById(R.id.tv_greeting)
         tvGreetingSub = view.findViewById(R.id.tv_greeting_sub)
-        tvBmiValue = view.findViewById(R.id.tv_home_bmi_value)
-        tvBmiCategory = view.findViewById(R.id.tv_home_bmi_category)
-        tvHeight = view.findViewById(R.id.tv_home_height)
-        tvWeight = view.findViewById(R.id.tv_home_weight)
         tvWorkoutPreview = view.findViewById(R.id.tv_workout_preview)
         tvStatWorkouts = view.findViewById(R.id.tv_stat_workouts)
         tvStatVolume = view.findViewById(R.id.tv_stat_volume)
         tvStatVolumeLabel = view.findViewById(R.id.tv_stat_volume_label)
         tvNoRecent = view.findViewById(R.id.tv_no_recent)
+        tvNoLifts = view.findViewById(R.id.tv_no_lifts)
         btnStartWorkout = view.findViewById(R.id.btn_start_workout)
         btnFullHistory = view.findViewById(R.id.btn_view_full_history)
         recyclerRecent = view.findViewById(R.id.recycler_recent_workouts)
+        recyclerTopLifts = view.findViewById(R.id.recycler_top_lifts)
         recyclerRecent.layoutManager = LinearLayoutManager(requireContext())
+        recyclerTopLifts.layoutManager = LinearLayoutManager(requireContext())
     }
 
     private fun setupClickListeners() {
@@ -94,13 +93,6 @@ class HomeFragment : Fragment() {
         val timeGreeting = getTimeBasedGreeting()
         tvGreeting.text = "$timeGreeting, ${profile.name}! 👋"
         tvGreetingSub.text = "Ready to crush today?"
-
-        val bmi = profile.calculateBMI()
-        tvBmiValue.text = String.format("%.1f", bmi)
-        tvBmiCategory.text = profile.getBMICategory()
-
-        tvHeight.text = UnitConverter.formatHeight(profile.heightCm, profile.preferredHeightUnit)
-        tvWeight.text = UnitConverter.formatWeight(profile.weightKg, profile.preferredWeightUnit)
 
         tvWorkoutPreview.text = "${profile.goal} • ${profile.equipment}"
     }
@@ -132,6 +124,21 @@ class HomeFragment : Fragment() {
             }
             tvStatVolume.text = String.format("%.0f", displayVolume)
             tvStatVolumeLabel.text = "Total $weightUnit"
+        }
+    }
+
+    private fun loadTopLifts() {
+        val db = AppDatabase.getDatabase(requireContext())
+        lifecycleScope.launch {
+            val topLifts = db.workoutDao().getTopLifts()
+            if (topLifts.isEmpty()) {
+                tvNoLifts.visibility = View.VISIBLE
+                recyclerTopLifts.visibility = View.GONE
+            } else {
+                tvNoLifts.visibility = View.GONE
+                recyclerTopLifts.visibility = View.VISIBLE
+                recyclerTopLifts.adapter = TopLiftAdapter(topLifts)
+            }
         }
     }
 
