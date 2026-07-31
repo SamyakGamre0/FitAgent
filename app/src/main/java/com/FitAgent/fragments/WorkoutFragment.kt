@@ -85,7 +85,8 @@ class WorkoutFragment : Fragment() {
         }
 
         btnNewRoutine.setOnClickListener {
-            Toast.makeText(requireContext(), "Create Routine coming Day 3", Toast.LENGTH_SHORT).show()
+            val intent = Intent(requireContext(), com.FitAgent.CreateRoutineActivity::class.java)
+            startActivity(intent)
         }
 
         btnExplore.setOnClickListener {

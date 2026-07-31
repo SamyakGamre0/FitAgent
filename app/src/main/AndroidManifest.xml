@@ -33,6 +33,18 @@
         <activity android:name=".ProgressActivity" />
         <activity android:name=".SessionDetailActivity" />
 
+        <activity
+            android:name=".CreateRoutineActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/Theme.FitAgent" />
+
+        <activity
+            android:name=".ExercisePickerActivity"
+            android:exported="false"
+            android:parentActivityName=".CreateRoutineActivity"
+            android:theme="@style/Theme.FitAgent" />
+
     </application>
 
 </manifest>

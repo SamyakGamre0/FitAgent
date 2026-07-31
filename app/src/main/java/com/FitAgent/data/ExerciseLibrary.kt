@@ -1,11 +1,15 @@
 package com.FitAgent.data
 
+import android.os.Parcelable
+import kotlinx.parcelize.Parcelize
+
+@Parcelize
 data class MasterExercise(
     val id: Int,
     val name: String,
     val muscleGroup: String,
     val emoji: String
-)
+) : Parcelable
 
 object ExerciseLibrary {
     val MASTER_LIST = listOf(
