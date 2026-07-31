@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TableRow xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginVertical="2dp"
+    android:gravity="center_vertical">
+
+    <TextView
+        android:id="@+id/tvSetNumber"
+        android:layout_width="60dp"
+        android:gravity="center"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+
+    <EditText
+        android:id="@+id/etWeight"
+        android:layout_width="wrap_content"
+        android:layout_column="1"
+        android:background="@drawable/bg_set_input_cell"
+        android:gravity="center"
+        android:hint="0"
+        android:inputType="numberDecimal"
+        android:minWidth="60dp"
+        android:padding="8dp"
+        android:textColor="#FFFFFF"
+        android:textColorHint="#444444"
+        android:textSize="16sp" />
+
+    <EditText
+        android:id="@+id/etReps"
+        android:layout_width="wrap_content"
+        android:layout_column="2"
+        android:layout_marginStart="8dp"
+        android:background="@drawable/bg_set_input_cell"
+        android:gravity="center"
+        android:hint="0"
+        android:inputType="number"
+        android:minWidth="60dp"
+        android:padding="8dp"
+        android:textColor="#FFFFFF"
+        android:textColorHint="#444444"
+        android:textSize="16sp" />
+
+    <ImageButton
+        android:id="@+id/btnDeleteSet"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_marginStart="8dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@android:drawable/ic_menu_close_clear_cancel"
+        app:tint="#666666" />
+</TableRow>

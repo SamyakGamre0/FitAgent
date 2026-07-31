@@ -17,9 +17,14 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.FitAgent.adapters.RoutineExerciseAdapter
 import com.FitAgent.data.MasterExercise
 import com.FitAgent.database.AppDatabase
+import com.FitAgent.models.DraftExercise
+import com.FitAgent.models.DraftSet
 import com.FitAgent.models.Routine
+import com.FitAgent.models.RoutineExercise
+import com.FitAgent.utils.ProfileManager
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.launch
 
@@ -28,7 +33,7 @@ class CreateRoutineActivity : AppCompatActivity() {
     private val REQ_CODE_PICK_EXERCISE = 1001
 
     private var hasUnsavedChanges = false
-    private var draftExercises: MutableList<Any> = mutableListOf()
+    private var draftExercises: MutableList<DraftExercise> = mutableListOf()
 
     private lateinit var btnCancel: TextView
     private lateinit var btnSave: MaterialButton
@@ -37,6 +42,8 @@ class CreateRoutineActivity : AppCompatActivity() {
     private lateinit var rvExercises: RecyclerView
     private lateinit var emptyState: LinearLayout
     private lateinit var btnAddExercise: MaterialButton
+
+    private lateinit var exerciseAdapter: RoutineExerciseAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,10 +58,25 @@ class CreateRoutineActivity : AppCompatActivity() {
         btnAddExercise = findViewById(R.id.btnAddExercise)
 
         rvExercises.layoutManager = LinearLayoutManager(this)
+        
+        val unitLabel = ProfileManager.getWeightUnit(this)
 
-        emptyState.visibility = View.VISIBLE
-        rvExercises.visibility = View.GONE
+        exerciseAdapter = RoutineExerciseAdapter(
+            items = draftExercises,
+            unitLabel = unitLabel,
+            onSetsChanged = { updateSaveButtonState() },
+            onRemoveExercise = { position ->
+                draftExercises.removeAt(position)
+                exerciseAdapter.notifyItemRemoved(position)
+                exerciseAdapter.notifyItemRangeChanged(position, draftExercises.size - position)
+                updateExercisesVisibility()
+                updateSaveButtonState()
+            }
+        )
+        rvExercises.adapter = exerciseAdapter
 
+        updateExercisesVisibility()
+        
         btnSave.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#444444"))
         btnSave.setTextColor(Color.parseColor("#888888"))
         btnSave.isEnabled = false
@@ -83,14 +105,31 @@ class CreateRoutineActivity : AppCompatActivity() {
             if (!btnSave.isEnabled) return@setOnClickListener
 
             lifecycleScope.launch {
+                val routineDao = AppDatabase.getDatabase(this@CreateRoutineActivity).routineDao()
                 val routine = Routine(
                     name = etRoutineTitle.text.toString().trim(),
                     createdAt = System.currentTimeMillis(),
                     isPrebuilt = false
                 )
-                val routineDao = AppDatabase.getDatabase(this@CreateRoutineActivity).routineDao()
-                routineDao.insertRoutine(routine)
-                // TODO Day 5: insert routine exercises
+                val newRoutineId = routineDao.insertRoutine(routine)
+
+                val routineExercises = draftExercises.mapIndexed { index, draft ->
+                    val firstSet = draft.sets.firstOrNull() ?: DraftSet()
+                    RoutineExercise(
+                        routineId = newRoutineId,
+                        exerciseName = draft.masterExercise.name,
+                        muscleGroup = draft.masterExercise.muscleGroup,
+                        orderIndex = index,
+                        defaultSets = draft.sets.size,
+                        defaultReps = firstSet.reps,
+                        defaultWeight = firstSet.weight,
+                        unit = unitLabel,
+                        notes = draft.notes
+                    )
+                }
+                routineDao.insertRoutineExercises(routineExercises)
+
+                Toast.makeText(this@CreateRoutineActivity, "Routine saved!", Toast.LENGTH_SHORT).show()
                 setResult(RESULT_OK)
                 finish()
             }
@@ -108,10 +147,24 @@ class CreateRoutineActivity : AppCompatActivity() {
         if (requestCode == REQ_CODE_PICK_EXERCISE && resultCode == RESULT_OK && data != null) {
             val selected = data.getParcelableArrayListExtra<MasterExercise>(ExercisePickerActivity.RESULT_KEY_SELECTED)
             if (selected != null && selected.isNotEmpty()) {
-                Toast.makeText(this, "${selected.size} exercises picked (config coming Day 5)", Toast.LENGTH_SHORT).show()
+                selected.forEach { masterEx ->
+                    draftExercises.add(DraftExercise(masterExercise = masterEx))
+                }
+                exerciseAdapter.notifyItemRangeInserted(draftExercises.size - selected.size, selected.size)
                 hasUnsavedChanges = true
-                android.util.Log.d("CreateRoutine", "Picked exercises: ${selected.map { it.name }}")
+                updateExercisesVisibility()
+                updateSaveButtonState()
             }
+        }
+    }
+
+    private fun updateExercisesVisibility() {
+        if (draftExercises.isEmpty()) {
+            emptyState.visibility = View.VISIBLE
+            rvExercises.visibility = View.GONE
+        } else {
+            emptyState.visibility = View.GONE
+            rvExercises.visibility = View.VISIBLE
         }
     }
 
