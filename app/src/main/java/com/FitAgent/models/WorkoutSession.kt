@@ -11,5 +11,6 @@ data class WorkoutSession(
     val equipment: String,
     val duration: String,
     val totalVolume: Double,
-    val exerciseCount: Int
+    val exerciseCount: Int,
+    val routineId: Long? = null
 )

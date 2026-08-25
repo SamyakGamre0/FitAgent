@@ -56,6 +56,13 @@ interface WorkoutDao {
         LIMIT 3
     """)
     suspend fun getTopLifts(): List<TopLiftResult>
+
+    @Query("""
+        SELECT * FROM workout_logs 
+        WHERE exerciseName LIKE :exercisePattern 
+        ORDER BY id DESC LIMIT 20
+    """)
+    suspend fun getRecentLogsForExercise(exercisePattern: String): List<WorkoutLog>
 }
 
 data class TopLiftResult(

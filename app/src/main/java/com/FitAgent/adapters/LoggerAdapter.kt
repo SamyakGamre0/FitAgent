@@ -18,6 +18,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
@@ -25,7 +26,10 @@ import androidx.recyclerview.widget.RecyclerView
 import com.FitAgent.R
 import com.FitAgent.models.Exercise
 import com.FitAgent.models.ExerciseType
+import com.FitAgent.models.WorkoutLog
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
+import kotlin.math.roundToInt
 
 data class SetData(
     var weight: Double = 0.0,
@@ -43,6 +47,13 @@ data class LoggedExercise(
 class LoggerAdapter(
     val loggedList: MutableList<LoggedExercise>
 ) : RecyclerView.Adapter<LoggerAdapter.LoggerViewHolder>() {
+
+    private val previousLogsMap = mutableMapOf<String, List<WorkoutLog>>()
+
+    fun setPreviousLogs(exerciseName: String, logs: List<WorkoutLog>) {
+        previousLogsMap[exerciseName] = logs
+        notifyDataSetChanged()
+    }
 
     class LoggerViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val tvName: TextView = view.findViewById(R.id.tv_log_exercise_name)
@@ -97,13 +108,56 @@ class LoggerAdapter(
         }
 
         holder.btnUnit.setOnClickListener {
-            logged.unit = if (logged.unit == "kg") "lbs" else "kg"
-            holder.btnUnit.text = logged.unit
-            buildSetsUI(context, holder, logged)
+            showUnitBottomSheet(context, logged, holder)
+        }
+    }
+
+    private fun showUnitBottomSheet(context: Context, logged: LoggedExercise, holder: LoggerViewHolder) {
+        val dialog = BottomSheetDialog(context)
+        val view = LayoutInflater.from(context).inflate(R.layout.dialog_weight_units, null)
+        dialog.setContentView(view)
+        
+        val tvTitle = view.findViewById<TextView>(R.id.tvExerciseSubTitle)
+        tvTitle.text = logged.exercise.name
+
+        val rgUnits = view.findViewById<RadioGroup>(R.id.rgUnits)
+        when (logged.unit) {
+            "kg" -> rgUnits.check(R.id.rbKg)
+            "lbs" -> rgUnits.check(R.id.rbLbs)
+            else -> rgUnits.check(R.id.rbDefault)
         }
 
-        holder.btnRestTimer.setOnClickListener {
-            showRestTimerDialog(context)
+        rgUnits.setOnCheckedChangeListener { _, checkedId ->
+            val oldUnit = logged.unit
+            val newUnit = when (checkedId) {
+                R.id.rbKg -> "kg"
+                R.id.rbLbs -> "lbs"
+                else -> "kg"
+            }
+            if (oldUnit != newUnit) {
+                logged.unit = newUnit
+                holder.btnUnit.text = logged.unit
+                convertWeights(logged, oldUnit, newUnit)
+                buildSetsUI(context, holder, logged)
+            }
+            dialog.dismiss()
+        }
+        dialog.show()
+    }
+
+    private fun convertWeights(logged: LoggedExercise, oldUnit: String, newUnit: String) {
+        val factor = 2.20462
+        for (setData in logged.setDataList) {
+            if (setData.weight > 0) {
+                val newW = if (oldUnit == "kg" && newUnit == "lbs") {
+                    setData.weight * factor
+                } else if (oldUnit == "lbs" && newUnit == "kg") {
+                    setData.weight / factor
+                } else {
+                    setData.weight
+                }
+                setData.weight = (newW * 10.0).roundToInt() / 10.0
+            }
         }
     }
 
@@ -113,6 +167,7 @@ class LoggerAdapter(
         val greenColor = ContextCompat.getColor(context, R.color.aura_green)
         val secondaryColor = ContextCompat.getColor(context, R.color.text_secondary)
         val primaryColor = ContextCompat.getColor(context, R.color.text_primary)
+        val previousLogs = previousLogsMap[logged.exercise.name] ?: emptyList()
 
         val header = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -121,16 +176,22 @@ class LoggerAdapter(
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { setMargins(0, 0, 0, dp(context, 8)) }
         }
+        
         header.addView(makeHeader(context, "SET", 1f, secondaryColor))
         when (logged.exercise.type) {
             ExerciseType.WEIGHTED -> {
-                header.addView(makeHeader(context, logged.unit.uppercase(), 2f, secondaryColor))
+                header.addView(makeHeader(context, "PREVIOUS", 2f, secondaryColor))
+                val unitHeader = makeHeader(context, "🏋️ ${logged.unit.uppercase()}", 2f, secondaryColor)
+                unitHeader.setOnClickListener { showUnitBottomSheet(context, logged, holder) }
+                header.addView(unitHeader)
                 header.addView(makeHeader(context, "REPS", 2f, secondaryColor))
             }
             ExerciseType.BODYWEIGHT -> {
+                header.addView(makeHeader(context, "PREVIOUS", 2f, secondaryColor))
                 header.addView(makeHeader(context, "REPS", 4f, secondaryColor))
             }
             ExerciseType.TIMED -> {
+                header.addView(makeHeader(context, "PREVIOUS", 2f, secondaryColor))
                 header.addView(makeHeader(context, "SECONDS", 4f, secondaryColor))
             }
         }
@@ -156,10 +217,29 @@ class LoggerAdapter(
             }
             row.addView(setNumber)
 
+            val previousLog = previousLogs.find { it.exerciseName.contains("Set ${i + 1}") }
+            val prevText = if (previousLog != null) {
+                when (logged.exercise.type) {
+                    ExerciseType.WEIGHTED -> "${formatWeight(previousLog.weight)}${previousLog.unit} × ${previousLog.reps}"
+                    ExerciseType.BODYWEIGHT -> "${previousLog.reps} reps"
+                    ExerciseType.TIMED -> "${previousLog.reps} sec"
+                }
+            } else "-"
+
+            val tvPrevious = TextView(context).apply {
+                text = prevText
+                setTextColor(secondaryColor)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 2f)
+            }
+
             when (logged.exercise.type) {
                 ExerciseType.WEIGHTED -> {
+                    row.addView(tvPrevious)
+                    
                     val weightEt = makeInput(context, primaryColor, InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
-                    weightEt.setText(if (setData.weight > 0) setData.weight.toString() else "")
+                    weightEt.setText(if (setData.weight > 0) formatWeight(setData.weight) else "")
                     weightEt.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 2f).apply {
                         setMargins(dp(context, 4), 0, dp(context, 4), 0)
                     }
@@ -179,6 +259,8 @@ class LoggerAdapter(
                     row.addView(repsEt)
                 }
                 ExerciseType.BODYWEIGHT -> {
+                    row.addView(tvPrevious)
+                    
                     val repsEt = makeInput(context, primaryColor, InputType.TYPE_CLASS_NUMBER)
                     repsEt.setText(if (setData.reps > 0) setData.reps.toString() else "")
                     repsEt.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 4f).apply {
@@ -190,6 +272,8 @@ class LoggerAdapter(
                     row.addView(repsEt)
                 }
                 ExerciseType.TIMED -> {
+                    row.addView(tvPrevious)
+                    
                     val secEt = makeInput(context, primaryColor, InputType.TYPE_CLASS_NUMBER)
                     secEt.setText(if (setData.seconds > 0) setData.seconds.toString() else "")
                     secEt.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 4f).apply {
@@ -204,6 +288,10 @@ class LoggerAdapter(
 
             holder.setsContainer.addView(row)
         }
+    }
+
+    private fun formatWeight(w: Double): String {
+        return "%.1f".format(w).trimEnd('0').trimEnd('.')
     }
 
     private fun makeHeader(context: Context, text: String, weight: Float, color: Int): TextView {

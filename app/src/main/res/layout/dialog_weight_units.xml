@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#1A1A1A"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Weight Units"
+        android:textColor="#FFFFFF"
+        android:textSize="20sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tvExerciseSubTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textColor="#00FF94"
+        android:textSize="14sp" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginVertical="16dp"
+        android:background="#333333" />
+
+    <RadioGroup
+        android:id="@+id/rgUnits"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <RadioButton
+            android:id="@+id/rbDefault"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="12dp"
+            android:text="Default (Global)"
+            android:textColor="#FFFFFF"
+            android:buttonTint="#00FF94" />
+
+        <RadioButton
+            android:id="@+id/rbKg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="12dp"
+            android:text="kg"
+            android:textColor="#FFFFFF"
+            android:buttonTint="#00FF94" />
+
+        <RadioButton
+            android:id="@+id/rbLbs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="12dp"
+            android:text="lbs"
+            android:textColor="#FFFFFF"
+            android:buttonTint="#00FF94" />
+    </RadioGroup>
+
+</LinearLayout>

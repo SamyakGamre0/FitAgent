@@ -1,5 +1,6 @@
 package com.FitAgent.adapters
 
+import android.content.Context
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.LayoutInflater
@@ -9,6 +10,7 @@ import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.PopupMenu
+import android.widget.RadioGroup
 import android.widget.TableLayout
 import android.widget.TableRow
 import android.widget.TextView
@@ -16,7 +18,9 @@ import androidx.recyclerview.widget.RecyclerView
 import com.FitAgent.R
 import com.FitAgent.models.DraftExercise
 import com.FitAgent.models.DraftSet
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
+import kotlin.math.roundToInt
 
 class RoutineExerciseAdapter(
     private val items: MutableList<DraftExercise>,
@@ -45,6 +49,10 @@ class RoutineExerciseAdapter(
         holder.ivMuscleIcon.setImageResource(getIconResForMuscle(item.masterExercise.muscleGroup))
         holder.tvExerciseName.text = item.masterExercise.name
         holder.tvUnitHeader.text = unitLabel.uppercase()
+
+        holder.tvUnitHeader.setOnClickListener {
+            showUnitBottomSheet(holder.itemView.context, holder, item)
+        }
 
         holder.etNotes.setTextIfDifferent(item.notes)
 
@@ -121,6 +129,55 @@ class RoutineExerciseAdapter(
                 } else false
             }
             popup.show()
+        }
+    }
+
+    private fun showUnitBottomSheet(context: Context, holder: VH, item: DraftExercise) {
+        val dialog = BottomSheetDialog(context)
+        val view = LayoutInflater.from(context).inflate(R.layout.dialog_weight_units, null)
+        dialog.setContentView(view)
+        
+        val tvTitle = view.findViewById<TextView>(R.id.tvExerciseSubTitle)
+        tvTitle.text = item.masterExercise.name
+
+        val rgUnits = view.findViewById<RadioGroup>(R.id.rgUnits)
+        when (unitLabel) {
+            "kg" -> rgUnits.check(R.id.rbKg)
+            "lbs" -> rgUnits.check(R.id.rbLbs)
+            else -> rgUnits.check(R.id.rbDefault)
+        }
+
+        rgUnits.setOnCheckedChangeListener { _, checkedId ->
+            val oldUnit = unitLabel
+            val newUnit = when (checkedId) {
+                R.id.rbKg -> "kg"
+                R.id.rbLbs -> "lbs"
+                else -> "kg"
+            }
+            if (oldUnit != newUnit) {
+                unitLabel = newUnit
+                holder.tvUnitHeader.text = unitLabel.uppercase()
+                convertWeights(item, oldUnit, newUnit)
+                notifyDataSetChanged()
+            }
+            dialog.dismiss()
+        }
+        dialog.show()
+    }
+
+    private fun convertWeights(item: DraftExercise, oldUnit: String, newUnit: String) {
+        val factor = 2.20462f
+        for (setData in item.sets) {
+            if (setData.weight > 0f) {
+                val newW = if (oldUnit == "kg" && newUnit == "lbs") {
+                    setData.weight * factor
+                } else if (oldUnit == "lbs" && newUnit == "kg") {
+                    setData.weight / factor
+                } else {
+                    setData.weight
+                }
+                setData.weight = (newW * 10.0f).roundToInt() / 10.0f
+            }
         }
     }
 

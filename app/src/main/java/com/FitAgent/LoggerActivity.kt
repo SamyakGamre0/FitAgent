@@ -14,6 +14,7 @@ import com.FitAgent.adapters.LoggedExercise
 import com.FitAgent.adapters.LoggerAdapter
 import com.FitAgent.adapters.SetData
 import com.FitAgent.database.AppDatabase
+import com.FitAgent.models.Exercise
 import com.FitAgent.models.ExerciseType
 import com.FitAgent.models.WorkoutLog
 import com.FitAgent.models.WorkoutSession
@@ -32,7 +33,9 @@ class LoggerActivity : AppCompatActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var timerRunnable: Runnable
     private lateinit var loggedList: MutableList<LoggedExercise>
+    private lateinit var adapter: LoggerAdapter
 
+    private var routineId: Long = -1L
     private val SECONDS_KEY = "saved_seconds"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,19 +48,70 @@ class LoggerActivity : AppCompatActivity() {
             seconds = savedInstanceState.getInt(SECONDS_KEY, 0)
         }
 
+        routineId = intent.getLongExtra("ROUTINE_ID", -1L)
         val goal = intent.getStringExtra("GOAL") ?: "General"
         val equipment = intent.getStringExtra("EQUIPMENT") ?: "None"
 
-        val exercises = WorkoutGenerator.generate(goal, equipment)
-        loggedList = exercises.map { ex ->
-            val initialSets = mutableListOf<SetData>()
-            repeat(ex.sets) { initialSets.add(SetData()) }
-            LoggedExercise(ex, sets = ex.sets, setDataList = initialSets)
-        }.toMutableList()
-
         val recycler = findViewById<RecyclerView>(R.id.recycler_logger)
         recycler.layoutManager = LinearLayoutManager(this)
-        recycler.adapter = LoggerAdapter(loggedList)
+
+        val db = AppDatabase.getDatabase(this)
+
+        if (routineId != -1L) {
+            lifecycleScope.launch {
+                val routineWithExercises = db.routineDao().getRoutineWithExercises(routineId)
+                if (routineWithExercises != null && routineWithExercises.exercises.isNotEmpty()) {
+
+                    val prefs = getSharedPreferences("fitagent_profile", MODE_PRIVATE)
+                    val globalUnit = prefs.getString("unit", null)
+                        ?: prefs.getString("weight_unit", null)
+                        ?: prefs.getString("unit_preference", "kg")
+                        ?: "kg"
+
+                    loggedList = routineWithExercises.exercises.sortedBy { it.orderIndex }.map { re ->
+                        val exType = when {
+                            re.muscleGroup.equals("Cardio", ignoreCase = true) -> ExerciseType.TIMED
+                            re.exerciseName.contains("Bodyweight", ignoreCase = true) -> ExerciseType.BODYWEIGHT
+                            else -> ExerciseType.WEIGHTED
+                        }
+
+                        val exerciseModel = Exercise(
+                            name = re.exerciseName,
+                            muscleGroup = re.muscleGroup,
+                            type = exType,
+                            sets = re.defaultSets,
+                            reps = re.defaultReps.toString(),
+                            tip = ""
+                        )
+
+                        val initialSets = (0 until re.defaultSets).map {
+                            SetData(
+                                weight = re.defaultWeight.toDouble(),
+                                reps = re.defaultReps,
+                                seconds = 0
+                            )
+                        }.toMutableList()
+
+                        val selectedUnit = if (re.unit == "default" || re.unit.isEmpty()) globalUnit else re.unit
+
+                        LoggedExercise(
+                            exercise = exerciseModel,
+                            sets = re.defaultSets,
+                            unit = selectedUnit,
+                            setDataList = initialSets
+                        )
+                    }.toMutableList()
+
+                    adapter = LoggerAdapter(loggedList)
+                    recycler.adapter = adapter
+                    loadPreviousPerformance(db)
+                } else {
+                    setupDefaultGenerator(goal, equipment, recycler)
+                }
+            }
+        } else {
+            setupDefaultGenerator(goal, equipment, recycler)
+        }
 
         startTimer()
 
@@ -73,9 +127,35 @@ class LoggerActivity : AppCompatActivity() {
         })
     }
 
+    private fun setupDefaultGenerator(goal: String, equipment: String, recycler: RecyclerView) {
+        val exercises = WorkoutGenerator.generate(goal, equipment)
+        loggedList = exercises.map { ex ->
+            val initialSets = mutableListOf<SetData>()
+            repeat(ex.sets) { initialSets.add(SetData()) }
+            LoggedExercise(ex, sets = ex.sets, setDataList = initialSets)
+        }.toMutableList()
+
+        adapter = LoggerAdapter(loggedList)
+        recycler.adapter = adapter
+
+        val db = AppDatabase.getDatabase(this)
+        loadPreviousPerformance(db)
+    }
+
+    private fun loadPreviousPerformance(db: AppDatabase) {
+        lifecycleScope.launch {
+            loggedList.forEach { logged ->
+                val recentLogs = db.workoutDao().getRecentLogsForExercise("${logged.exercise.name}%")
+                if (recentLogs.isNotEmpty()) {
+                    adapter.setPreviousLogs(logged.exercise.name, recentLogs)
+                }
+            }
+        }
+    }
+
     private fun showExitConfirmation() {
         MaterialAlertDialogBuilder(this)
-            .setTitle("Quit Workout? 🏃♂️")
+            .setTitle("Quit Workout? 🏃‍♂️")
             .setMessage("Your progress will be lost if you leave now.")
             .setPositiveButton("Keep Going 💪") { dialog, _ -> dialog.dismiss() }
             .setNegativeButton("Quit") { _, _ ->
@@ -123,7 +203,8 @@ class LoggerActivity : AppCompatActivity() {
                 equipment = equipment,
                 duration = duration,
                 totalVolume = 0.0,
-                exerciseCount = 0
+                exerciseCount = 0,
+                routineId = if (routineId != -1L) routineId else null
             )
             val sessionId = db.workoutDao().insertSession(tempSession)
 
@@ -173,6 +254,10 @@ class LoggerActivity : AppCompatActivity() {
             )
             db.workoutDao().deleteSession(tempSession.copy(id = sessionId))
             db.workoutDao().insertSession(updatedSession)
+
+            if (routineId != -1L) {
+                db.routineDao().updateLastUsed(routineId, System.currentTimeMillis())
+            }
 
             Toast.makeText(this@LoggerActivity, "✅ Workout Saved!", Toast.LENGTH_LONG).show()
 
