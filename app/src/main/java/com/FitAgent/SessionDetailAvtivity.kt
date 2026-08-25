@@ -22,12 +22,13 @@ class SessionDetailActivity : AppCompatActivity() {
         val sessionEquipment = intent.getStringExtra("SESSION_EQUIPMENT") ?: ""
         val sessionDuration = intent.getStringExtra("SESSION_DURATION") ?: ""
         val sessionVolume = intent.getDoubleExtra("SESSION_VOLUME", 0.0)
+        val globalUnit = intent.getStringExtra("GLOBAL_UNIT") ?: "kg"
 
         findViewById<TextView>(R.id.tv_detail_date).text = sessionDate
         findViewById<TextView>(R.id.tv_detail_goal).text = "$sessionGoal • $sessionEquipment"
         findViewById<TextView>(R.id.tv_detail_duration).text = "⏱ $sessionDuration"
         findViewById<TextView>(R.id.tv_detail_volume).text =
-            "Total Volume: ${String.format("%.1f", sessionVolume)}"
+            "Total Volume: ${String.format("%.1f", sessionVolume)} $globalUnit"
 
         val recycler = findViewById<RecyclerView>(R.id.recycler_detail_logs)
         recycler.layoutManager = LinearLayoutManager(this)

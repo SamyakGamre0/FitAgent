@@ -18,6 +18,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
@@ -30,6 +31,8 @@ import com.FitAgent.models.WorkoutLog
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import kotlin.math.roundToInt
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 
 data class SetData(
     var weight: Double = 0.0,
@@ -120,6 +123,15 @@ class LoggerAdapter(
         val tvTitle = view.findViewById<TextView>(R.id.tvExerciseSubTitle)
         tvTitle.text = logged.exercise.name
 
+        val prefs = context.getSharedPreferences("fitagent_profile", Context.MODE_PRIVATE)
+        val globalUnit = prefs.getString("unit", null) 
+            ?: prefs.getString("weight_unit", null) 
+            ?: prefs.getString("unit_preference", "kg") 
+            ?: "kg"
+
+        val rbDefault = view.findViewById<RadioButton>(R.id.rbDefault)
+        rbDefault.text = "Default ($globalUnit)"
+
         val rgUnits = view.findViewById<RadioGroup>(R.id.rgUnits)
         when (logged.unit) {
             "kg" -> rgUnits.check(R.id.rbKg)
@@ -132,7 +144,8 @@ class LoggerAdapter(
             val newUnit = when (checkedId) {
                 R.id.rbKg -> "kg"
                 R.id.rbLbs -> "lbs"
-                else -> "kg"
+                R.id.rbDefault -> globalUnit
+                else -> globalUnit
             }
             if (oldUnit != newUnit) {
                 logged.unit = newUnit
@@ -310,7 +323,13 @@ class LoggerAdapter(
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
             gravity = Gravity.CENTER
             inputType = inputTypeFlag
-            setBackgroundResource(android.R.drawable.editbox_background_normal)
+            
+            val bg = GradientDrawable()
+            bg.setColor(Color.parseColor("#2A2A2A"))
+            bg.cornerRadius = dp(context, 8).toFloat()
+            background = bg
+            
+            setHintTextColor(Color.parseColor("#666666"))
             setPadding(dp(context, 8), dp(context, 6), dp(context, 8), dp(context, 6))
         }
     }

@@ -1,5 +1,6 @@
 package com.FitAgent
 
+import android.content.Context
 import android.os.Bundle
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -27,8 +28,31 @@ class HistoryDetailActivity : AppCompatActivity() {
             val session = db.workoutDao().getAllSessions().find { it.id == sessionId }
             val logs = if (sessionId != -1L) db.workoutDao().getLogsForSession(sessionId) else emptyList()
 
-            session?.let {
-                tvTitle.text = "Workout on ${it.date}\n${it.goal} • ${it.equipment} • ⏱ ${it.duration}"
+            session?.let { s ->
+                val prefs = getSharedPreferences("fitagent_profile", Context.MODE_PRIVATE)
+                val globalUnit = prefs.getString("unit", null) 
+                    ?: prefs.getString("weight_unit", null) 
+                    ?: prefs.getString("unit_preference", "kg") 
+                    ?: "kg"
+
+                var newVolume = 0.0
+                for (log in logs) {
+                    if (log.weight > 0) {
+                        val convertedWeight = if (log.unit == "kg" && globalUnit == "lbs") {
+                            log.weight * 2.20462
+                        } else if (log.unit == "lbs" && globalUnit == "kg") {
+                            log.weight / 2.20462
+                        } else {
+                            log.weight
+                        }
+                        newVolume += convertedWeight * log.reps
+                    } else if (log.volume > 0) {
+                        newVolume += log.volume
+                    }
+                }
+
+                val formattedVolume = String.format("%.1f", newVolume)
+                tvTitle.text = "Workout on ${s.date}\n${s.goal} • ${s.equipment} • ⏱ ${s.duration}\nTotal Volume: $formattedVolume $globalUnit"
             }
 
             recycler.adapter = HistoryDetailAdapter(logs)

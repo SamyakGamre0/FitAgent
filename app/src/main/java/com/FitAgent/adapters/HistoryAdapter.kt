@@ -1,5 +1,6 @@
 package com.FitAgent.adapters
 
+import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -7,8 +8,6 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.FitAgent.R
 import com.FitAgent.models.WorkoutSession
-import com.FitAgent.utils.ProfileManager
-import com.FitAgent.utils.UnitConverter
 
 class HistoryAdapter(
     private val sessions: MutableList<WorkoutSession>,
@@ -30,19 +29,18 @@ class HistoryAdapter(
     override fun onBindViewHolder(holder: HistoryViewHolder, position: Int) {
         val s = sessions[position]
         val context = holder.itemView.context
-        val weightUnit = ProfileManager.getWeightUnit(context)
+        
+        val prefs = context.getSharedPreferences("fitagent_profile", Context.MODE_PRIVATE)
+        val globalUnit = prefs.getString("unit", null) 
+            ?: prefs.getString("weight_unit", null) 
+            ?: prefs.getString("unit_preference", "kg") 
+            ?: "kg"
 
         holder.tvDate.text = s.date
         holder.tvGoal.text = "${s.goal} • ${s.equipment}"
 
-        // Convert volume to user's preferred unit
-        val displayVolume = if (weightUnit == "lbs") {
-            UnitConverter.kgToLbs(s.totalVolume)
-        } else {
-            s.totalVolume
-        }
-        val cleanVolume = String.format("%.1f", displayVolume)
-        holder.tvStats.text = "${s.exerciseCount} exercises • $cleanVolume $weightUnit • ⏱ ${s.duration}"
+        val cleanVolume = String.format("%.1f", s.totalVolume)
+        holder.tvStats.text = "${s.exerciseCount} exercises • $cleanVolume $globalUnit • ⏱ ${s.duration}"
 
         holder.itemView.setOnClickListener { onSessionClick(s) }
     }

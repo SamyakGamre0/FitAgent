@@ -84,10 +84,11 @@ class LoggerActivity : AppCompatActivity() {
                             tip = ""
                         )
 
+                        // Start with clean, EMPTY inputs (0.0 / 0) so user types fresh values
                         val initialSets = (0 until re.defaultSets).map {
                             SetData(
-                                weight = re.defaultWeight.toDouble(),
-                                reps = re.defaultReps,
+                                weight = 0.0,
+                                reps = 0,
                                 seconds = 0
                             )
                         }.toMutableList()
@@ -255,8 +256,31 @@ class LoggerActivity : AppCompatActivity() {
             db.workoutDao().deleteSession(tempSession.copy(id = sessionId))
             db.workoutDao().insertSession(updatedSession)
 
+            // Update routine template without deleting unperformed exercises
             if (routineId != -1L) {
-                db.routineDao().updateLastUsed(routineId, System.currentTimeMillis())
+                val routineWith = db.routineDao().getRoutineWithExercises(routineId)
+                if (routineWith != null) {
+                    db.routineDao().deleteRoutineExercises(routineId)
+
+                    // Keep ALL exercises in the routine (logged & unlogged)
+                    val updatedRoutineExercises = loggedList.mapIndexed { index, logged ->
+                        val firstValidSet = logged.setDataList.firstOrNull { sd -> sd.weight > 0 || sd.reps > 0 }
+
+                        com.FitAgent.models.RoutineExercise(
+                            routineId = routineId,
+                            exerciseName = logged.exercise.name,
+                            muscleGroup = logged.exercise.muscleGroup,
+                            orderIndex = index,
+                            defaultSets = logged.sets, // Preserves updated set count
+                            defaultReps = firstValidSet?.reps ?: 0,
+                            defaultWeight = (firstValidSet?.weight ?: 0.0).toFloat(),
+                            unit = logged.unit,
+                            notes = ""
+                        )
+                    }
+                    db.routineDao().insertRoutineExercises(updatedRoutineExercises)
+                    db.routineDao().updateLastUsed(routineId, System.currentTimeMillis())
+                }
             }
 
             Toast.makeText(this@LoggerActivity, "✅ Workout Saved!", Toast.LENGTH_LONG).show()

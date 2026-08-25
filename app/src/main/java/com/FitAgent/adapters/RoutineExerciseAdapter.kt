@@ -10,6 +10,7 @@ import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.PopupMenu
+import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.TableLayout
 import android.widget.TableRow
@@ -140,6 +141,15 @@ class RoutineExerciseAdapter(
         val tvTitle = view.findViewById<TextView>(R.id.tvExerciseSubTitle)
         tvTitle.text = item.masterExercise.name
 
+        val prefs = context.getSharedPreferences("fitagent_profile", Context.MODE_PRIVATE)
+        val globalUnit = prefs.getString("unit", null) 
+            ?: prefs.getString("weight_unit", null) 
+            ?: prefs.getString("unit_preference", "kg") 
+            ?: "kg"
+
+        val rbDefault = view.findViewById<RadioButton>(R.id.rbDefault)
+        rbDefault.text = "Default ($globalUnit)"
+
         val rgUnits = view.findViewById<RadioGroup>(R.id.rgUnits)
         when (unitLabel) {
             "kg" -> rgUnits.check(R.id.rbKg)
@@ -152,7 +162,8 @@ class RoutineExerciseAdapter(
             val newUnit = when (checkedId) {
                 R.id.rbKg -> "kg"
                 R.id.rbLbs -> "lbs"
-                else -> "kg"
+                R.id.rbDefault -> globalUnit
+                else -> globalUnit
             }
             if (oldUnit != newUnit) {
                 unitLabel = newUnit

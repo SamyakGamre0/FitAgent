@@ -40,6 +40,37 @@ class HistoryActivity : AppCompatActivity() {
         val db = AppDatabase.getDatabase(this)
         lifecycleScope.launch {
             val sessions = db.workoutDao().getAllSessions().toMutableList()
+            
+            val prefs = getSharedPreferences("fitagent_profile", MODE_PRIVATE)
+            val globalUnit = prefs.getString("unit", null) 
+                ?: prefs.getString("weight_unit", null) 
+                ?: prefs.getString("unit_preference", "kg") 
+                ?: "kg"
+
+            // Recompute volume dynamically from logs to match global unit
+            for (i in sessions.indices) {
+                val session = sessions[i]
+                val logs = db.workoutDao().getLogsForSession(session.id)
+                var newVolume = 0.0
+                for (log in logs) {
+                    if (log.weight > 0) {
+                        val convertedWeight = if (log.unit == "kg" && globalUnit == "lbs") {
+                            log.weight * 2.20462
+                        } else if (log.unit == "lbs" && globalUnit == "kg") {
+                            log.weight / 2.20462
+                        } else {
+                            log.weight
+                        }
+                        newVolume += convertedWeight * log.reps
+                    } else if (log.volume > 0) {
+                        newVolume += log.volume
+                    }
+                }
+                if (logs.isNotEmpty()) {
+                    sessions[i] = session.copy(totalVolume = newVolume)
+                }
+            }
+
             if (sessions.isEmpty()) {
                 tvEmpty.visibility = View.VISIBLE
                 recycler.visibility = View.GONE
@@ -54,6 +85,7 @@ class HistoryActivity : AppCompatActivity() {
                     intent.putExtra("SESSION_EQUIPMENT", session.equipment)
                     intent.putExtra("SESSION_DURATION", session.duration)
                     intent.putExtra("SESSION_VOLUME", session.totalVolume)
+                    intent.putExtra("GLOBAL_UNIT", globalUnit)
                     startActivity(intent)
                 }
                 recycler.adapter = adapter
