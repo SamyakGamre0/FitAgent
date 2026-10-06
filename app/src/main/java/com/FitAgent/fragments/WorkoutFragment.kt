@@ -103,11 +103,24 @@ class WorkoutFragment : Fragment() {
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 1 -> {
-                    Toast.makeText(requireContext(), "Edit coming Day 7", Toast.LENGTH_SHORT).show()
+                    val intent = Intent(requireContext(), com.FitAgent.CreateRoutineActivity::class.java)
+                    intent.putExtra("EDIT_ROUTINE_ID", routine.routine.id)
+                    startActivity(intent)
                     true
                 }
                 2 -> {
-                    Toast.makeText(requireContext(), "Duplicate coming Day 7", Toast.LENGTH_SHORT).show()
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        val src = routineDao.getRoutineWithExercises(routine.routine.id) ?: return@launch
+                        val newId = routineDao.insertRoutine(
+                            src.routine.copy(id = 0, name = src.routine.name + " (Copy)", createdAt = System.currentTimeMillis(), lastUsedAt = null, isPrebuilt = false)
+                        )
+                        val copies = src.exercises.map { it.copy(id = 0, routineId = newId) }
+                        routineDao.insertRoutineExercises(copies)
+                        
+                        view?.let {
+                            Snackbar.make(it, "Routine duplicated", Snackbar.LENGTH_SHORT).show()
+                        }
+                    }
                     true
                 }
                 3 -> {

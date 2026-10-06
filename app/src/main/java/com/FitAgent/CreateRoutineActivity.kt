@@ -34,6 +34,7 @@ class CreateRoutineActivity : AppCompatActivity() {
 
     private var hasUnsavedChanges = false
     private var draftExercises: MutableList<DraftExercise> = mutableListOf()
+    private var editRoutineId: Long = -1L
 
     private lateinit var btnCancel: TextView
     private lateinit var btnSave: MaterialButton
@@ -77,6 +78,37 @@ class CreateRoutineActivity : AppCompatActivity() {
 
         updateExercisesVisibility()
         
+        editRoutineId = intent.getLongExtra("EDIT_ROUTINE_ID", -1L)
+        if (editRoutineId != -1L) {
+            tvToolbarTitle.text = "Edit Routine"
+            lifecycleScope.launch {
+                val routineDao = AppDatabase.getDatabase(this@CreateRoutineActivity).routineDao()
+                val routineWithExercises = routineDao.getRoutineWithExercises(editRoutineId)
+                if (routineWithExercises != null) {
+                    etRoutineTitle.setText(routineWithExercises.routine.name)
+                    
+                    draftExercises.clear()
+                    routineWithExercises.exercises.forEach { re ->
+                        val masterEx = com.FitAgent.data.ExerciseLibrary.MASTER_LIST.find { it.name == re.exerciseName } 
+                            ?: MasterExercise(id = -1, name = re.exerciseName, muscleGroup = re.muscleGroup, emoji = getEmojiForGroup(re.muscleGroup))
+                        
+                        val draftSets = mutableListOf<DraftSet>()
+                        if (re.defaultSets > 0) {
+                            for (i in 0 until re.defaultSets) {
+                                draftSets.add(DraftSet(weight = re.defaultWeight, reps = re.defaultReps))
+                            }
+                        }
+                        
+                        draftExercises.add(DraftExercise(masterExercise = masterEx, sets = draftSets, notes = re.notes))
+                    }
+                    exerciseAdapter.notifyDataSetChanged()
+                    updateExercisesVisibility()
+                    updateSaveButtonState()
+                    hasUnsavedChanges = false
+                }
+            }
+        }
+        
         btnSave.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#444444"))
         btnSave.setTextColor(Color.parseColor("#888888"))
         btnSave.isEnabled = false
@@ -106,17 +138,31 @@ class CreateRoutineActivity : AppCompatActivity() {
 
             lifecycleScope.launch {
                 val routineDao = AppDatabase.getDatabase(this@CreateRoutineActivity).routineDao()
-                val routine = Routine(
-                    name = etRoutineTitle.text.toString().trim(),
-                    createdAt = System.currentTimeMillis(),
-                    isPrebuilt = false
-                )
-                val newRoutineId = routineDao.insertRoutine(routine)
+                
+                val routineIdToUse: Long
+                if (editRoutineId == -1L) {
+                    val routine = Routine(
+                        name = etRoutineTitle.text.toString().trim(),
+                        createdAt = System.currentTimeMillis(),
+                        isPrebuilt = false
+                    )
+                    routineIdToUse = routineDao.insertRoutine(routine)
+                } else {
+                    val existing = routineDao.getRoutineWithExercises(editRoutineId)
+                    if (existing != null) {
+                        val updatedRoutine = existing.routine.copy(name = etRoutineTitle.text.toString().trim())
+                        routineDao.updateRoutine(updatedRoutine)
+                        routineDao.deleteRoutineExercises(editRoutineId)
+                        routineIdToUse = editRoutineId
+                    } else {
+                        return@launch
+                    }
+                }
 
                 val routineExercises = draftExercises.mapIndexed { index, draft ->
                     val firstSet = draft.sets.firstOrNull() ?: DraftSet()
                     RoutineExercise(
-                        routineId = newRoutineId,
+                        routineId = routineIdToUse,
                         exerciseName = draft.masterExercise.name,
                         muscleGroup = draft.masterExercise.muscleGroup,
                         orderIndex = index,
@@ -194,6 +240,19 @@ class CreateRoutineActivity : AppCompatActivity() {
                 .show()
         } else {
             finish()
+        }
+    }
+
+    private fun getEmojiForGroup(group: String): String {
+        return when (group) {
+            "Chest" -> "🫁"
+            "Back" -> "🔙"
+            "Legs" -> "🦵"
+            "Shoulders" -> "🤷"
+            "Arms" -> "💪"
+            "Core" -> "🧘"
+            "Cardio" -> "🏃"
+            else -> "🏋️"
         }
     }
 }

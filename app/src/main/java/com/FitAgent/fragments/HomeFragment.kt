@@ -22,6 +22,7 @@ import com.FitAgent.utils.ProfileManager
 import com.FitAgent.utils.UnitConverter
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.launch
+import com.FitAgent.MainActivity
 
 class HomeFragment : Fragment() {
 
@@ -169,11 +170,6 @@ class HomeFragment : Fragment() {
     }
 
     private fun startWorkoutFromProfile() {
-        val profile = ProfileManager.loadProfile(requireContext())
-        val intent = Intent(requireContext(), WorkoutPlanActivity::class.java)
-        intent.putExtra("GOAL", profile.goal)
-        intent.putExtra("EQUIPMENT", profile.equipment)
-        intent.putExtra("DAYS", profile.daysPerWeek)
-        startActivity(intent)
+        (activity as? MainActivity)?.switchToWorkoutTab()
     }
 }
