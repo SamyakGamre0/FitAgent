@@ -35,44 +35,26 @@
             android:textSize="22sp"
             android:textStyle="bold" />
 
-        <LinearLayout
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnNewRoutine"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="56dp"
             android:layout_marginTop="12dp"
-            android:orientation="horizontal"
-            android:weightSum="2">
+            android:text="New Routine"
+            android:textColor="#FFFFFF"
+            app:backgroundTint="@android:color/transparent"
+            app:cornerRadius="12dp"
+            app:icon="@android:drawable/ic_menu_edit"
+            app:iconTint="#FFFFFF"
+            app:strokeColor="#333333" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnNewRoutine"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:layout_width="0dp"
-                android:layout_height="60dp"
-                android:layout_weight="1"
-                android:text="New Routine"
-                android:textColor="#FFFFFF"
-                app:backgroundTint="@android:color/transparent"
-                app:icon="@android:drawable/ic_menu_edit"
-                app:iconTint="#FFFFFF"
-                app:strokeColor="#333333" />
-
-            <Space
-                android:layout_width="8dp"
-                android:layout_height="wrap_content" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnExplore"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:layout_width="0dp"
-                android:layout_height="60dp"
-                android:layout_weight="1"
-                android:text="Explore"
-                android:textColor="#FFFFFF"
-                app:backgroundTint="@android:color/transparent"
-                app:icon="@android:drawable/ic_menu_search"
-                app:iconTint="#FFFFFF"
-                app:strokeColor="#333333" />
-
-        </LinearLayout>
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnExplore"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone"
+            tools:visibility="gone" />
 
         <TextView
             android:id="@+id/tvMyRoutinesHeader"

@@ -20,6 +20,7 @@ import com.FitAgent.adapters.TopLiftAdapter
 import com.FitAgent.database.AppDatabase
 import com.FitAgent.utils.ProfileManager
 import com.FitAgent.utils.UnitConverter
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.launch
 
@@ -80,7 +81,12 @@ class HomeFragment : Fragment() {
 
     private fun setupClickListeners() {
         btnStartWorkout.setOnClickListener {
-            startWorkoutFromProfile()
+            val bottomNav = activity?.findViewById<BottomNavigationView>(R.id.bottom_nav)
+            if (bottomNav != null) {
+                bottomNav.selectedItemId = R.id.nav_workout
+            } else {
+                startWorkoutFromProfile()
+            }
         }
         btnFullHistory.setOnClickListener {
             startActivity(Intent(requireContext(), HistoryActivity::class.java))

@@ -13,6 +13,7 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.FitAgent.CreateRoutineActivity
 import com.FitAgent.LoggerActivity
 import com.FitAgent.R
 import com.FitAgent.adapters.RoutineAdapter
@@ -49,20 +50,19 @@ class WorkoutFragment : Fragment() {
 
         val btnStartEmptyWorkout = view.findViewById<MaterialButton>(R.id.btnStartEmptyWorkout)
         val btnNewRoutine = view.findViewById<MaterialButton>(R.id.btnNewRoutine)
-        val btnExplore = view.findViewById<MaterialButton>(R.id.btnExplore)
+        val btnExplore = view.findViewById<MaterialButton?>(R.id.btnExplore)
+        btnExplore?.visibility = View.GONE
 
         adapter = RoutineAdapter(
             items = emptyList(),
             onStartClick = { routine ->
-                val intent = Intent(requireContext(), LoggerActivity::class.java)
-                intent.putExtra("ROUTINE_ID", routine.routine.id)
-                startActivity(intent)
+                startRoutineWorkout(routine)
             },
             onMoreClick = { routine, anchorView ->
                 showPopupMenu(routine, anchorView)
             },
-            onCardClick = { _ ->
-                Toast.makeText(requireContext(), "Routine detail coming Day 9", Toast.LENGTH_SHORT).show()
+            onCardClick = { routine ->
+                startRoutineWorkout(routine)
             }
         )
 
@@ -85,13 +85,15 @@ class WorkoutFragment : Fragment() {
         }
 
         btnNewRoutine.setOnClickListener {
-            val intent = Intent(requireContext(), com.FitAgent.CreateRoutineActivity::class.java)
+            val intent = Intent(requireContext(), CreateRoutineActivity::class.java)
             startActivity(intent)
         }
+    }
 
-        btnExplore.setOnClickListener {
-            Toast.makeText(requireContext(), "Explore coming Day 8", Toast.LENGTH_SHORT).show()
-        }
+    private fun startRoutineWorkout(routine: RoutineWithExercises) {
+        val intent = Intent(requireContext(), LoggerActivity::class.java)
+        intent.putExtra("ROUTINE_ID", routine.routine.id)
+        startActivity(intent)
     }
 
     private fun showPopupMenu(routine: RoutineWithExercises, anchorView: View) {
@@ -103,11 +105,13 @@ class WorkoutFragment : Fragment() {
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 1 -> {
-                    Toast.makeText(requireContext(), "Edit coming Day 7", Toast.LENGTH_SHORT).show()
+                    val intent = Intent(requireContext(), CreateRoutineActivity::class.java)
+                    intent.putExtra("EDIT_ROUTINE_ID", routine.routine.id)
+                    startActivity(intent)
                     true
                 }
                 2 -> {
-                    Toast.makeText(requireContext(), "Duplicate coming Day 7", Toast.LENGTH_SHORT).show()
+                    duplicateRoutine(routine)
                     true
                 }
                 3 -> {
@@ -120,10 +124,28 @@ class WorkoutFragment : Fragment() {
         popup.show()
     }
 
+    private fun duplicateRoutine(routine: RoutineWithExercises) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val newRoutine = routine.routine.copy(
+                id = 0,
+                name = "${routine.routine.name} (Copy)",
+                createdAt = System.currentTimeMillis(),
+                lastUsedAt = null,
+                isPrebuilt = false
+            )
+            val newId = routineDao.insertRoutine(newRoutine)
+            val duplicatedExercises = routine.exercises.map { exercise ->
+                exercise.copy(id = 0, routineId = newId)
+            }
+            routineDao.insertRoutineExercises(duplicatedExercises)
+            Toast.makeText(requireContext(), "Routine duplicated", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun deleteRoutineWithUndo(routine: RoutineWithExercises) {
         viewLifecycleOwner.lifecycleScope.launch {
             routineDao.deleteRoutine(routine.routine.id)
-            
+
             view?.let {
                 Snackbar.make(it, "Routine deleted", Snackbar.LENGTH_LONG)
                     .setAction("Undo") {

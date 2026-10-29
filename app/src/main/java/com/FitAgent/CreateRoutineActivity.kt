@@ -18,6 +18,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.FitAgent.adapters.RoutineExerciseAdapter
+import com.FitAgent.data.ExerciseLibrary
 import com.FitAgent.data.MasterExercise
 import com.FitAgent.database.AppDatabase
 import com.FitAgent.models.DraftExercise
@@ -34,6 +35,7 @@ class CreateRoutineActivity : AppCompatActivity() {
 
     private var hasUnsavedChanges = false
     private var draftExercises: MutableList<DraftExercise> = mutableListOf()
+    private var editRoutineId: Long = -1L
 
     private lateinit var btnCancel: TextView
     private lateinit var btnSave: MaterialButton
@@ -44,6 +46,7 @@ class CreateRoutineActivity : AppCompatActivity() {
     private lateinit var btnAddExercise: MaterialButton
 
     private lateinit var exerciseAdapter: RoutineExerciseAdapter
+    private var unitLabel: String = "kg"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,8 +61,8 @@ class CreateRoutineActivity : AppCompatActivity() {
         btnAddExercise = findViewById(R.id.btnAddExercise)
 
         rvExercises.layoutManager = LinearLayoutManager(this)
-        
-        val unitLabel = ProfileManager.getWeightUnit(this)
+
+        unitLabel = ProfileManager.getWeightUnit(this)
 
         exerciseAdapter = RoutineExerciseAdapter(
             items = draftExercises,
@@ -76,10 +79,16 @@ class CreateRoutineActivity : AppCompatActivity() {
         rvExercises.adapter = exerciseAdapter
 
         updateExercisesVisibility()
-        
+
         btnSave.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#444444"))
         btnSave.setTextColor(Color.parseColor("#888888"))
         btnSave.isEnabled = false
+
+        editRoutineId = intent.getLongExtra("EDIT_ROUTINE_ID", -1L)
+        if (editRoutineId != -1L) {
+            tvToolbarTitle.text = "Edit Routine"
+            loadRoutineForEditing(editRoutineId)
+        }
 
         etRoutineTitle.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -106,17 +115,28 @@ class CreateRoutineActivity : AppCompatActivity() {
 
             lifecycleScope.launch {
                 val routineDao = AppDatabase.getDatabase(this@CreateRoutineActivity).routineDao()
-                val routine = Routine(
-                    name = etRoutineTitle.text.toString().trim(),
-                    createdAt = System.currentTimeMillis(),
-                    isPrebuilt = false
-                )
-                val newRoutineId = routineDao.insertRoutine(routine)
+                val routineName = etRoutineTitle.text.toString().trim()
+
+                val savedRoutineId = if (editRoutineId != -1L) {
+                    val existing = routineDao.getRoutineWithExercises(editRoutineId)?.routine
+                    if (existing != null) {
+                        routineDao.updateRoutine(existing.copy(name = routineName))
+                    }
+                    routineDao.deleteRoutineExercises(editRoutineId)
+                    editRoutineId
+                } else {
+                    val routine = Routine(
+                        name = routineName,
+                        createdAt = System.currentTimeMillis(),
+                        isPrebuilt = false
+                    )
+                    routineDao.insertRoutine(routine)
+                }
 
                 val routineExercises = draftExercises.mapIndexed { index, draft ->
                     val firstSet = draft.sets.firstOrNull() ?: DraftSet()
                     RoutineExercise(
-                        routineId = newRoutineId,
+                        routineId = savedRoutineId,
                         exerciseName = draft.masterExercise.name,
                         muscleGroup = draft.masterExercise.muscleGroup,
                         orderIndex = index,
@@ -129,7 +149,8 @@ class CreateRoutineActivity : AppCompatActivity() {
                 }
                 routineDao.insertRoutineExercises(routineExercises)
 
-                Toast.makeText(this@CreateRoutineActivity, "Routine saved!", Toast.LENGTH_SHORT).show()
+                val message = if (editRoutineId != -1L) "Routine updated!" else "Routine saved!"
+                Toast.makeText(this@CreateRoutineActivity, message, Toast.LENGTH_SHORT).show()
                 setResult(RESULT_OK)
                 finish()
             }
@@ -138,6 +159,42 @@ class CreateRoutineActivity : AppCompatActivity() {
         btnAddExercise.setOnClickListener {
             val intent = Intent(this, ExercisePickerActivity::class.java)
             startActivityForResult(intent, REQ_CODE_PICK_EXERCISE)
+        }
+    }
+
+    private fun loadRoutineForEditing(routineId: Long) {
+        lifecycleScope.launch {
+            val routineDao = AppDatabase.getDatabase(this@CreateRoutineActivity).routineDao()
+            val routineWithExercises = routineDao.getRoutineWithExercises(routineId) ?: return@launch
+
+            etRoutineTitle.setText(routineWithExercises.routine.name)
+
+            draftExercises.clear()
+            routineWithExercises.exercises.sortedBy { it.orderIndex }.forEach { ex ->
+                val masterEx = ExerciseLibrary.MASTER_LIST.find {
+                    it.name.equals(ex.exerciseName, ignoreCase = true)
+                } ?: MasterExercise(
+                    id = 0,
+                    name = ex.exerciseName,
+                    muscleGroup = ex.muscleGroup,
+                    emoji = "💪"
+                )
+                val numSets = if (ex.defaultSets > 0) ex.defaultSets else 1
+                val sets = MutableList(numSets) {
+                    DraftSet(weight = ex.defaultWeight, reps = ex.defaultReps)
+                }
+                draftExercises.add(
+                    DraftExercise(
+                        masterExercise = masterEx,
+                        notes = ex.notes,
+                        sets = sets
+                    )
+                )
+            }
+            exerciseAdapter.notifyDataSetChanged()
+            updateExercisesVisibility()
+            updateSaveButtonState()
+            hasUnsavedChanges = false
         }
     }
 
